@@ -17,12 +17,12 @@ var inCountdown:Bool = false;
 
 var bird:FlxSprite;
 var pipes:FlxTypedGroup<FlxSprite>;
-var powerups:FlxTypedGroup<FlxSprite>; // NEW: Power-up group
+var powerups:FlxTypedGroup<FlxSprite>; 
 var scoreText:FlxText;
 var highscoreText:FlxText;
 var newBestPopup:FlxText; 
 var pipeTimer:FlxTimer;
-var shieldTimerObj:FlxTimer; // NEW: Timer for the invincibility shield
+var shieldTimerObj:FlxTimer; 
 
 var blurShader:CustomShader;
 var cylindricalShader:CustomShader;
@@ -32,10 +32,20 @@ var sky:FlxBackdrop;
 var score:Int = 0;
 var pipeSpeed:Float = -300;
 var gravity:Float = 1500;
-var hasShield:Bool = false; // NEW: Tracks if you are invincible
+var hasShield:Bool = false; 
+
+// --- NEW: Font Variable ---
+var currentFont:String = "vcr.ttf"; 
 
 function create() {
     if (FlxG.save.data.flappyHighscore == null) FlxG.save.data.flappyHighscore = 0;
+
+    // --- NEW: Load Custom Font ---
+    if (FlxG.save.data.flappyFont != null) {
+        currentFont = FlxG.save.data.flappyFont;
+    } else {
+        FlxG.save.data.flappyFont = "vcr.ttf"; 
+    }
 
     blurShader = new CustomShader("blur");
     blurShader.amount = 0;
@@ -60,34 +70,32 @@ function create() {
     pipes = new FlxTypedGroup();
     add(pipes);
 
-    // Initialize Powerups group
     powerups = new FlxTypedGroup();
     add(powerups);
 
-    // MOVED BIRD TO X = 300
     bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(45, 45, 0xFFFFFF00); 
     bird.antialiasing = true;
     add(bird);
 
-    // --- UI ELEMENTS ---
+    // --- UI ELEMENTS (Updated with currentFont) ---
     scoreText = new FlxText(0, 50, FlxG.width, "0", 64);
-    scoreText.setFormat(Paths.font("vcr.ttf"), 64, 0xFFFFFFFF, "center", 1, 0xFF000000);
+    scoreText.setFormat(Paths.font(currentFont), 64, 0xFFFFFFFF, "center", 1, 0xFF000000);
     scoreText.cameras = [uiCam];
     add(scoreText);
 
     highscoreText = new FlxText(20, 20, FlxG.width, "BEST: " + FlxG.save.data.flappyHighscore, 24);
-    highscoreText.setFormat(Paths.font("vcr.ttf"), 24, 0xFFFFFFFF, "left", 1, 0xFF000000);
+    highscoreText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "left", 1, 0xFF000000);
     highscoreText.cameras = [uiCam];
     add(highscoreText);
 
     newBestPopup = new FlxText(20, 45, FlxG.width, "NEW BEST!", 16);
-    newBestPopup.setFormat(Paths.font("vcr.ttf"), 16, 0xFFFFEE00, "left", 1, 0xFF000000);
+    newBestPopup.setFormat(Paths.font(currentFont), 16, 0xFFFFEE00, "left", 1, 0xFF000000);
     newBestPopup.cameras = [uiCam];
     newBestPopup.alpha = 0; 
     add(newBestPopup);
 
     var startHint:FlxText = new FlxText(0, FlxG.height * 0.8, FlxG.width, "PRESS SPACE TO START", 32);
-    startHint.setFormat(Paths.font("vcr.ttf"), 32, 0xFFFFEE00, "center", 1, 0xFF000000);
+    startHint.setFormat(Paths.font(currentFont), 32, 0xFFFFEE00, "center", 1, 0xFF000000);
     startHint.ID = 100; 
     startHint.cameras = [uiCam];
     add(startHint);
@@ -126,24 +134,19 @@ function update(elapsed:Float) {
 
                 bird.angle = FlxMath.lerp(bird.angle, (bird.velocity.y < 0) ? -20 : 90, elapsed * 8);
 
-                // Floor/Ceiling collision still kills you even with shield
                 if (bird.y > FlxG.height || bird.y < 0) gameOver();
                 
-                // Pipe Collision (Ignored if hasShield is true)
                 if (!hasShield) {
                     FlxG.overlap(bird, pipes, function(b, p) { gameOver(); });
                 }
 
-                // Power-up Collision
                 FlxG.overlap(bird, powerups, function(b, pu) {
                     if (pu.ID == 1) {
-                        // Coin collected! +5 points (Internal score is doubled, so +10)
                         score += 10;
                         FlxG.sound.play(Paths.sound("confirmMenu"), 0.5);
                     } else if (pu.ID == 2) {
-                        // Shield collected!
                         hasShield = true;
-                        bird.alpha = 0.4; // Make bird ghost-like
+                        bird.alpha = 0.4; 
                         FlxG.sound.play(Paths.sound("confirmMenu"), 0.7);
                         
                         if (shieldTimerObj != null) shieldTimerObj.cancel();
@@ -200,7 +203,6 @@ function pauseGame() {
     pipeTimer.active = false;
     sky.active = false; 
     
-    // Pause the shield timer if active
     if (shieldTimerObj != null && shieldTimerObj.active) shieldTimerObj.active = false;
     
     blurShader.amount = 3.0;
@@ -232,7 +234,8 @@ function startCountdown() {
     
     var count:Int = 3;
     var cdText:FlxText = new FlxText(0, 0, FlxG.width, "3", 128);
-    cdText.setFormat(Paths.font("vcr.ttf"), 128, 0xFFFFFFFF, "center", 1, 0xFF000000);
+    // Use currentFont here
+    cdText.setFormat(Paths.font(currentFont), 128, 0xFFFFFFFF, "center", 1, 0xFF000000);
     cdText.screenCenter();
     cdText.cameras = [uiCam];
     add(cdText);
@@ -250,7 +253,6 @@ function startCountdown() {
             pipeTimer.active = true;
             sky.active = true;
             
-            // Resume shield timer
             if (shieldTimerObj != null && hasShield) shieldTimerObj.active = true;
         } else {
             cdText.text = Std.string(count);
@@ -270,49 +272,42 @@ function spawnPipe() {
     var gap:Float = 210;
     var screenPos:Float = FlxG.random.float(100, FlxG.height - gap - 100);
 
-    // 1. TOP PIPE SIDE 
     var topSide = pipes.recycle(FlxSprite);
     topSide.makeGraphic(80, Math.floor(screenPos), 0xFF006600);
     topSide.reset(FlxG.width + 15, 0); 
     topSide.ID = 2; 
     pipes.add(topSide);
 
-    // 2. TOP PIPE FRONT
     var topPipe = pipes.recycle(FlxSprite);
     topPipe.makeGraphic(80, Math.floor(screenPos), 0xFF00FF00);
     topPipe.reset(FlxG.width, 0);
     topPipe.ID = 0;
     pipes.add(topPipe);
 
-    // 3. BOTTOM PIPE SIDE
     var botSide = pipes.recycle(FlxSprite);
     botSide.makeGraphic(80, Math.floor(FlxG.height - screenPos - gap), 0xFF006600); 
     botSide.reset(FlxG.width + 15, screenPos + gap);
     botSide.ID = 2;
     pipes.add(botSide);
 
-    // 4. BOTTOM PIPE FRONT
     var bottomPipe = pipes.recycle(FlxSprite);
     bottomPipe.makeGraphic(80, Math.floor(FlxG.height - screenPos - gap), 0xFF00FF00); 
     bottomPipe.reset(FlxG.width, screenPos + gap);
     bottomPipe.ID = 0;
     pipes.add(bottomPipe);
 
-    // --- POWERUP SPAWNING LOGIC ---
-    // 25% chance to spawn a powerup in the gap
     if (FlxG.random.bool(25)) {
         var pu = powerups.recycle(FlxSprite);
-        var isShield = FlxG.random.bool(20); // 20% of powerups are shields, 80% are coins
+        var isShield = FlxG.random.bool(20); 
         
         if (isShield) {
-            pu.makeGraphic(30, 30, 0xFF00FFFF); // Cyan = Shield
+            pu.makeGraphic(30, 30, 0xFF00FFFF); 
             pu.ID = 2;
         } else {
-            pu.makeGraphic(30, 30, 0xFFFFD700); // Gold = Coin (+5 score)
+            pu.makeGraphic(30, 30, 0xFFFFD700); 
             pu.ID = 1;
         }
         
-        // Spawn right in the center of the gap
         pu.reset(FlxG.width + 25, screenPos + (gap / 2) - 15);
         powerups.add(pu);
     }
@@ -349,7 +344,8 @@ function gameOver() {
     FlxG.sound.play(Paths.sound("death_sfx")); 
 
     var lostText:FlxText = new FlxText(0, 0, FlxG.width, "GAME OVER\nSCORE: " + finalScore, 48);
-    lostText.setFormat(Paths.font("vcr.ttf"), 48, 0xFFFF0000, "center", 1, 0xFF000000);
+    // Use currentFont here
+    lostText.setFormat(Paths.font(currentFont), 48, 0xFFFF0000, "center", 1, 0xFF000000);
     lostText.screenCenter();
     lostText.y -= 50;
     lostText.cameras = [uiCam];
@@ -357,13 +353,15 @@ function gameOver() {
 
     if (medal != "NONE") {
         var medalText:FlxText = new FlxText(0, lostText.y + 110, FlxG.width, medal + " MEDAL UNLOCKED", 24);
-        medalText.setFormat(Paths.font("vcr.ttf"), 24, medalColor, "center", 1, 0xFF000000);
+        // Use currentFont here
+        medalText.setFormat(Paths.font(currentFont), 24, medalColor, "center", 1, 0xFF000000);
         medalText.cameras = [uiCam];
         add(medalText);
     }
 
     var restartText:FlxText = new FlxText(0, FlxG.height - 100, FlxG.width, "[ENTER] RETRY   [BACK] MENU", 24);
-    restartText.setFormat(Paths.font("vcr.ttf"), 24, 0xFFFFFFFF, "center", 1, 0xFF000000);
+    // Use currentFont here
+    restartText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 1, 0xFF000000);
     restartText.cameras = [uiCam];
     add(restartText);
 }
