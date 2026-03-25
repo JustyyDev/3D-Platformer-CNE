@@ -7,13 +7,15 @@ import flixel.tweens.FlxTween;
 import flixel.util.FlxEase;
 import flixel.util.FlxColor;
 import flixel.addons.display.FlxBackdrop;
+import flixel.input.keyboard.FlxKey;
 import funkin.backend.shaders.CustomShader;
 import funkin.backend.scripting.ModState;
 import funkin.backend.scripting.ModSubState;
 import sys.net.Host;
 import funkin.backend.system.net.Socket;
 
-var gameState:String = "WAITING"; 
+// States: NICKNAME, MENU, ROOM_INPUT, LEADERBOARD, CONNECTING, WAITING_FOR_OPPONENT, PLAYING, DEAD
+var gameState:String = "NICKNAME"; 
 var isPaused:Bool = false;
 var inCountdown:Bool = false;
 
@@ -26,18 +28,15 @@ var powerups:FlxTypedGroup<FlxSprite>;
 // UI
 var titleText:FlxText;
 var scoreText:FlxText;
-var highscoreText:FlxText;
-var newBestPopup:FlxText; 
 var lobbyText:FlxText;
+var typingText:FlxText;
+var leaderboardGroup:FlxTypedGroup<FlxText>;
 var uiCam:FlxCamera;
 
 var pipeTimer:FlxTimer;
 var shieldTimerObj:FlxTimer; 
 
-var blurShader:CustomShader;
-var cylindricalShader:CustomShader;
 var sky:FlxBackdrop;
-
 var score:Int = 0;
 var pipeSpeed:Float = -300;
 var gravity:Float = 1500;
@@ -45,7 +44,7 @@ var hasShield:Bool = false;
 var currentFont:String = "vcr.ttf"; 
 
 // --- MULTIPLAYER VARIABLES ---
-var SERVER_IP:String = "144.21.35.78"; // Your Oracle VPS IP!
+var SERVER_IP:String = "144.21.35.78"; 
 var isMultiplayer:Bool = false;
 var connection:Socket;
 var p2Score:Int = 0;
@@ -54,82 +53,89 @@ var iAmDead:Bool = false;
 var netBuffer:String = ""; 
 var connectionEstablished:Bool = false; 
 
+// --- LOBBY VARIABLES ---
+var myNickname:String = "";
+var typedInput:String = "";
+var opponentName:String = "P2";
+
 function create() {
-    if (FlxG.save.data.flappyHighscore == null) FlxG.save.data.flappyHighscore = 0;
     if (FlxG.save.data.flappyFont != null) currentFont = FlxG.save.data.flappyFont;
-    else FlxG.save.data.flappyFont = "vcr.ttf"; 
-
-    blurShader = new CustomShader("blur");
-    blurShader.amount = 0;
-
-    cylindricalShader = new CustomShader("cylindrical");
-    cylindricalShader.curve = 0.5;   
-    cylindricalShader.zoom = 1.35;   
-    FlxG.camera.addShader(cylindricalShader);
-
+    
     uiCam = new FlxCamera();
     uiCam.bgColor = 0x00000000;
     FlxG.cameras.add(uiCam, false);
 
     sky = new FlxBackdrop(Paths.image('menus/flappy/sky'), 0x01, 0, 0);
-    sky.antialiasing = true;
-    sky.velocity.x = -40;
-    sky.setGraphicSize(FlxG.width, FlxG.height);
-    sky.updateHitbox();
-    sky.y = 0; 
+    sky.antialiasing = true; sky.velocity.x = -40;
+    sky.setGraphicSize(FlxG.width, FlxG.height); sky.updateHitbox();
     add(sky);
 
-    pipes = new FlxTypedGroup();
-    add(pipes);
+    pipes = new FlxTypedGroup(); add(pipes);
+    powerups = new FlxTypedGroup(); add(powerups);
+    leaderboardGroup = new FlxTypedGroup(); add(leaderboardGroup);
 
-    powerups = new FlxTypedGroup();
-    add(powerups);
-
-    bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(45, 45, 0xFFFFFF00); 
-    bird.antialiasing = true;
-    add(bird);
-
+    bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(45, 45, 0xFFFFFF00); add(bird);
     p2Bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(45, 45, 0xFFFF0000); 
-    p2Bird.antialiasing = true;
-    p2Bird.alpha = 0.5; 
-    p2Bird.visible = false;
-    add(p2Bird);
+    p2Bird.alpha = 0.5; p2Bird.visible = false; add(p2Bird);
 
-    // --- POLISHED UI ELEMENTS ---
-    titleText = new FlxText(0, FlxG.height * 0.2, FlxG.width, "FLAPPY BIRD", 96);
+    titleText = new FlxText(0, FlxG.height * 0.15, FlxG.width, "FLAPPY BIRD", 96);
     titleText.setFormat(Paths.font(currentFont), 96, 0xFFFFFFFF, "center", 2, 0xFF000000);
-    titleText.cameras = [uiCam];
-    add(titleText);
+    titleText.cameras = [uiCam]; add(titleText);
 
     scoreText = new FlxText(0, 50, FlxG.width, "0", 64);
     scoreText.setFormat(Paths.font(currentFont), 64, 0xFFFFFFFF, "center", 2, 0xFF000000);
-    scoreText.cameras = [uiCam];
-    scoreText.visible = false; // Hide until game starts
-    add(scoreText);
+    scoreText.cameras = [uiCam]; scoreText.visible = false; add(scoreText);
 
-    highscoreText = new FlxText(20, 20, FlxG.width, "BEST: " + FlxG.save.data.flappyHighscore, 24);
-    highscoreText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "left", 2, 0xFF000000);
-    highscoreText.cameras = [uiCam];
-    add(highscoreText);
-
-    newBestPopup = new FlxText(20, 55, FlxG.width, "NEW BEST!", 16);
-    newBestPopup.setFormat(Paths.font(currentFont), 16, 0xFFFFEE00, "left", 2, 0xFF000000);
-    newBestPopup.cameras = [uiCam];
-    newBestPopup.alpha = 0; 
-    add(newBestPopup);
-
-    lobbyText = new FlxText(0, FlxG.height * 0.75, FlxG.width, "[SPACE] Play Solo   [O] Play Online", 32);
+    lobbyText = new FlxText(0, FlxG.height * 0.6, FlxG.width, "", 32);
     lobbyText.setFormat(Paths.font(currentFont), 32, 0xFFFFEE00, "center", 2, 0xFF000000);
-    lobbyText.cameras = [uiCam];
-    add(lobbyText);
+    lobbyText.cameras = [uiCam]; add(lobbyText);
+
+    typingText = new FlxText(0, FlxG.height * 0.75, FlxG.width, "", 48);
+    typingText.setFormat(Paths.font(currentFont), 48, 0xFFFFFFFF, "center", 2, 0xFF000000);
+    typingText.cameras = [uiCam]; add(typingText);
+
+    // Check if player already has a nickname saved
+    if (FlxG.save.data.flappyNickname != null && FlxG.save.data.flappyNickname != "") {
+        myNickname = FlxG.save.data.flappyNickname;
+        switchState("MENU");
+    } else {
+        switchState("NICKNAME");
+    }
+}
+
+function switchState(newState:String) {
+    gameState = newState;
+    typedInput = "";
+    typingText.text = "";
+    leaderboardGroup.clear();
+    
+    switch(newState) {
+        case "NICKNAME":
+            lobbyText.text = "ENTER YOUR NICKNAME:\n(Press ENTER to confirm)";
+        case "MENU":
+            lobbyText.text = "WELCOME, " + myNickname + "!\n\n[1] Play Solo\n[2] Join/Create Room\n[3] Global Leaderboard";
+        case "ROOM_INPUT":
+            lobbyText.text = "ENTER 4-LETTER ROOM CODE:\n(Press ENTER to join)";
+        case "LEADERBOARD":
+            lobbyText.text = "CONNECTING TO LEADERBOARD...";
+            fetchLeaderboard();
+    }
 }
 
 // --- NETWORK PROCESSING ---
 function safeSend(msg:String) {
-    if (connection != null && connectionEstablished) {
-        try {
-            connection.write(msg);
-        } catch(e:Dynamic) {}
+    if (connection != null && connectionEstablished) try { connection.write(msg); } catch(e:Dynamic) {}
+}
+
+function fetchLeaderboard() {
+    try {
+        connection = new Socket();
+        connection.connect(new Host(SERVER_IP), 8080);
+        connection.socket.setBlocking(false);
+        connectionEstablished = true;
+        safeSend("GET_LEADERBOARD\n");
+    } catch(e:Dynamic) {
+        lobbyText.text = "SERVER OFFLINE! Press [BACKSPACE] to return.";
     }
 }
 
@@ -147,30 +153,39 @@ function processNetwork() {
                     if (msg == "") continue;
                     var parts = msg.split(":");
                     switch(parts[0]) {
-                        case "SEED":
+                        case "START": // START:SEED:OPPONENT_NAME
                             FlxG.random.initialSeed = Std.parseInt(parts[1]);
+                            opponentName = parts[2];
                             startMultiplayer();
-                        case "Y":
-                            p2Bird.y = Std.parseFloat(parts[1]);
-                        case "JUMP":
-                            p2Bird.velocity.y = -500;
-                        case "SCORE":
+                        case "ROOM_FULL":
+                            lobbyText.text = "ROOM IS FULL!\nPress [BACKSPACE] to return.";
+                            gameState = "MENU";
+                        case "LEADERBOARD":
+                            lobbyText.text = "GLOBAL TOP 10\n[BACKSPACE] to return";
+                            var jsonStr = msg.substring(12); // Remove "LEADERBOARD:"
+                            var board:Array<Dynamic> = haxe.Json.parse(jsonStr);
+                            var startY = FlxG.height * 0.3;
+                            for (i in 0...board.length) {
+                                var entry = new FlxText(0, startY + (i * 30), FlxG.width, (i+1) + ". " + board[i].name + " - " + board[i].score, 24);
+                                entry.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 2, 0xFF000000);
+                                entry.cameras = [uiCam];
+                                leaderboardGroup.add(entry);
+                            }
+                        case "Y": p2Bird.y = Std.parseFloat(parts[1]);
+                        case "JUMP": p2Bird.velocity.y = -500;
+                        case "SCORE": 
                             p2Score = Std.parseInt(parts[1]);
                             updateScoreUI();
                         case "DEAD":
                             p2Dead = true;
-                            p2Bird.velocity.x = pipeSpeed; 
-                            p2Bird.acceleration.y = gravity;
+                            p2Bird.velocity.x = pipeSpeed; p2Bird.acceleration.y = gravity;
                             FlxG.sound.play(Paths.sound("death_sfx"), 0.5);
                         case "OPPONENT_DISCONNECTED":
                             if (!iAmDead && !p2Dead && gameState == "PLAYING") {
-                                p2Dead = true;
-                                p2Bird.visible = false;
-                                var dcText = new FlxText(0, FlxG.height * 0.3, FlxG.width, "OPPONENT LEFT!\nYOU WIN!", 48);
-                                dcText.setFormat(Paths.font(currentFont), 48, 0xFF00FF00, "center", 2, 0xFF000000);
-                                dcText.cameras = [uiCam];
-                                add(dcText);
-                                FlxG.sound.play(Paths.sound("confirmMenu"), 1.0);
+                                p2Dead = true; p2Bird.visible = false;
+                                lobbyText.text = opponentName + " LEFT! YOU WIN!";
+                                lobbyText.color = 0xFF00FF00;
+                                lobbyText.cameras = [uiCam]; add(lobbyText);
                                 gameOver();
                             }
                     }
@@ -180,83 +195,123 @@ function processNetwork() {
     } catch(e:Dynamic) {}
 }
 
+function handleTyping(maxLength:Int) {
+    if (FlxG.keys.justPressed.BACKSPACE && typedInput.length > 0) {
+        typedInput = typedInput.substring(0, typedInput.length - 1);
+        FlxG.sound.play(Paths.sound("scrollMenu"), 0.5);
+    } else if (FlxG.keys.justPressed.SPACE && typedInput.length < maxLength && gameState == "NICKNAME") {
+        typedInput += " ";
+        FlxG.sound.play(Paths.sound("scrollMenu"), 0.5);
+    } else if (typedInput.length < maxLength) {
+        var key = FlxG.keys.firstJustPressed();
+        
+        // Use basic string slicing to bypass the HScript sandbox!
+        var letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        var numbers = "0123456789";
+
+        // A-Z is keycodes 65 to 90
+        if (key >= 65 && key <= 90) { 
+            typedInput += letters.charAt(key - 65);
+            FlxG.sound.play(Paths.sound("scrollMenu"), 0.5);
+        } 
+        // 0-9 is keycodes 48 to 57
+        else if (key >= 48 && key <= 57) { 
+            typedInput += numbers.charAt(key - 48);
+            FlxG.sound.play(Paths.sound("scrollMenu"), 0.5);
+        }
+    }
+    typingText.text = "> " + typedInput + (FlxG.game.ticks % 60 > 30 ? "_" : "");
+}
+
 function updateScoreUI() {
     var displayScore = Math.floor(score / 2);
-    var p2Display = Math.floor(p2Score / 2);
-    
-    if (isMultiplayer) scoreText.text = "YOU: " + displayScore + " | P2: " + p2Display;
+    if (isMultiplayer) scoreText.text = myNickname + ": " + displayScore + " | " + opponentName + ": " + Math.floor(p2Score / 2);
     else scoreText.text = Std.string(displayScore);
-    
-    if (displayScore > FlxG.save.data.flappyHighscore) {
-        if (newBestPopup.alpha == 0) {
-            FlxG.sound.play(Paths.sound("confirmMenu"), 1.0);
-            FlxG.camera.flash(0x44FFFFFF, 0.5);
-        }
-        highscoreText.text = "BEST: " + displayScore;
-        newBestPopup.alpha = 1; 
-    }
 }
 
 function killMe() {
     if (iAmDead) return;
     iAmDead = true;
-    bird.velocity.x = pipeSpeed; 
-    bird.acceleration.y = gravity; 
+    bird.velocity.x = pipeSpeed; bird.acceleration.y = gravity; 
     FlxG.sound.play(Paths.sound("death_sfx")); 
     
     if (isMultiplayer) {
         safeSend("DEAD\n");
+        safeSend("SUBMIT_SCORE:" + Math.floor(score / 2) + "\n");
         var deadTxt = new FlxText(0, FlxG.height * 0.2, FlxG.width, "YOU DIED! SPECTATING...", 32);
         deadTxt.setFormat(Paths.font(currentFont), 32, 0xFFFF0000, "center", 2, 0xFF000000);
-        deadTxt.cameras = [uiCam];
-        add(deadTxt);
+        deadTxt.cameras = [uiCam]; add(deadTxt);
     }
 }
 
 function update(elapsed:Float) {
-    if (newBestPopup != null && newBestPopup.alpha > 0) {
-        var pulse = 1 + (Math.sin(FlxG.game.ticks / 200) * 0.1);
-        newBestPopup.scale.set(pulse, pulse);
+    if (gameState != "PLAYING" && gameState != "DEAD") {
+        bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
     }
 
     switch (gameState) {
-        case "WAITING":
-            // Smooth idle bobbing & pulsing text
-            bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
-            lobbyText.alpha = 0.5 + (Math.sin(FlxG.game.ticks / 300) * 0.5);
+                case "NICKNAME":
+                    handleTyping(12);
+                    // Removed .trim() here!
+                    if (FlxG.keys.justPressed.ENTER && typedInput.length > 0) {
+                        myNickname = typedInput; // Removed .trim() here too!
+                        FlxG.save.data.flappyNickname = myNickname;
+                        FlxG.save.flush();
+                        FlxG.sound.play(Paths.sound("confirmMenu"));
+                        switchState("MENU");
+                    }
 
-            if (FlxG.keys.justPressed.SPACE) {
-                startGame();
-            } else if (FlxG.keys.justPressed.O) {
-                lobbyText.alpha = 1.0;
-                lobbyText.text = "CONNECTING TO SERVER...";
-                gameState = "CONNECTING";
-                
-                try {
-                    connection = new Socket();
-                    connection.connect(new Host(SERVER_IP), 8080);
-                    connection.socket.setBlocking(false);
-                    connectionEstablished = true;
-                    isMultiplayer = true;
-                    
-                    lobbyText.text = "CONNECTED! WAITING FOR OPPONENT...";
-                    gameState = "WAITING_FOR_SEED";
-                } catch(e:Dynamic) {
-                    lobbyText.text = "SERVER OFFLINE! [O] TO RETRY";
-                    gameState = "WAITING";
-                }
+                case "MENU":
+                    if (FlxG.keys.justPressed.ONE) {
+                        startGame();
+                    } else if (FlxG.keys.justPressed.TWO) {
+                        switchState("ROOM_INPUT");
+                    } else if (FlxG.keys.justPressed.THREE) {
+                        switchState("LEADERBOARD");
+                    } else if (FlxG.keys.justPressed.ESCAPE || FlxG.keys.justPressed.BACKSPACE) {
+                        FlxG.switchState(new ModState("CustomMainMenu"));
+                    }
+
+                case "ROOM_INPUT":
+                    handleTyping(6); 
+                    // Removed .trim() here!
+                    if (FlxG.keys.justPressed.ENTER && typedInput.length > 0) {
+                        lobbyText.text = "CONNECTING TO SERVER...";
+                        typingText.text = "";
+                        gameState = "CONNECTING";
+                        
+                        try {
+                            connection = new Socket();
+                            connection.connect(new Host(SERVER_IP), 8080);
+                            connection.socket.setBlocking(false);
+                            connectionEstablished = true;
+                            isMultiplayer = true;
+                            
+                            // Removed .trim() here too!
+                            safeSend("JOIN_ROOM:" + typedInput + ":" + myNickname + "\n");
+                            gameState = "WAITING_FOR_OPPONENT";
+                        } catch(e:Dynamic) {
+                            lobbyText.text = "SERVER OFFLINE! [BACKSPACE] TO RETURN";
+                            gameState = "ROOM_INPUT";
+                        }
+                    }
+                    if (FlxG.keys.justPressed.ESCAPE || FlxG.keys.justPressed.BACKSPACE) switchState("MENU");
+        case "WAITING_FOR_OPPONENT":
+            processNetwork();
+            lobbyText.alpha = 0.5 + (Math.sin(FlxG.game.ticks / 300) * 0.5);
+            if (FlxG.keys.justPressed.ESCAPE || FlxG.keys.justPressed.BACKSPACE) {
+                if (connection != null) connection.destroy();
+                switchState("MENU");
             }
 
-        case "WAITING_FOR_SEED":
-            bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
-            lobbyText.alpha = 0.5 + (Math.sin(FlxG.game.ticks / 300) * 0.5);
+        case "LEADERBOARD":
             processNetwork();
+            if (FlxG.keys.justPressed.ESCAPE || FlxG.keys.justPressed.BACKSPACE) {
+                if (connection != null) connection.destroy();
+                switchState("MENU");
+            }
 
         case "PLAYING":
-            if (FlxG.keys.justPressed.P || FlxG.keys.justPressed.ESCAPE) {
-                if (!isMultiplayer) pauseGame(); // Disabled in multiplayer to prevent desync
-            }
-            
             if (isMultiplayer) processNetwork();
             
             if (!isPaused && !inCountdown) {
@@ -271,20 +326,13 @@ function update(elapsed:Float) {
                     if (!hasShield) FlxG.overlap(bird, pipes, function(b, p) { killMe(); });
 
                     FlxG.overlap(bird, powerups, function(b, pu) {
-                        if (pu.ID == 1) {
-                            score += 10;
-                            FlxG.sound.play(Paths.sound("confirmMenu"), 0.5);
-                        } else if (pu.ID == 2) {
-                            hasShield = true;
-                            bird.alpha = 0.4; 
-                            FlxG.sound.play(Paths.sound("confirmMenu"), 0.7);
+                        if (pu.ID == 1) score += 10;
+                        else if (pu.ID == 2) {
+                            hasShield = true; bird.alpha = 0.4; 
                             if (shieldTimerObj != null) shieldTimerObj.cancel();
-                            shieldTimerObj = new FlxTimer().start(4, function(tmr) {
-                                hasShield = false;
-                                bird.alpha = 1.0;
-                            });
+                            shieldTimerObj = new FlxTimer().start(4, function(tmr) { hasShield = false; bird.alpha = 1.0; });
                         }
-                        pu.kill();
+                        pu.kill(); FlxG.sound.play(Paths.sound("confirmMenu"), 0.6);
                         updateScoreUI();
                         if (isMultiplayer) safeSend("SCORE:" + score + "\n");
                     });
@@ -292,33 +340,22 @@ function update(elapsed:Float) {
                     if (isMultiplayer && FlxG.game.ticks % 3 == 0) safeSend("Y:" + bird.y + "\n");
                 }
 
-                if (isMultiplayer && !p2Dead) {
-                    p2Bird.angle = FlxMath.lerp(p2Bird.angle, (p2Bird.velocity.y < 0) ? -20 : 90, elapsed * 8);
-                }
+                if (isMultiplayer && !p2Dead) p2Bird.angle = FlxMath.lerp(p2Bird.angle, (p2Bird.velocity.y < 0) ? -20 : 90, elapsed * 8);
 
                 pipes.forEachAlive(function(p:FlxSprite) {
                     p.velocity.x = pipeSpeed;
                     if (p.x + p.width < 0) p.kill();
-                    
                     if (p.ID == 0 && p.x + p.width < bird.x && !iAmDead) {
-                        p.ID = 1;
-                        score++;
+                        p.ID = 1; score++; updateScoreUI(); FlxG.sound.play(Paths.sound("confirmMenu"), 0.4);
                         if (isMultiplayer) safeSend("SCORE:" + score + "\n");
-                        updateScoreUI();
-                        FlxG.sound.play(Paths.sound("confirmMenu"), 0.4);
                     }
                 });
 
-                powerups.forEachAlive(function(pu:FlxSprite) {
-                    pu.velocity.x = pipeSpeed;
-                    if (pu.x + pu.width < 0) pu.kill();
-                });
+                powerups.forEachAlive(function(pu:FlxSprite) { pu.velocity.x = pipeSpeed; if (pu.x + pu.width < 0) pu.kill(); });
                 
-                if (isMultiplayer) {
-                    if (iAmDead && p2Dead) gameOver();
-                } else {
-                    if (iAmDead) gameOver();
-                }
+                if (isMultiplayer && iAmDead && p2Dead) gameOver();
+                else if (!isMultiplayer && iAmDead) gameOver();
+                
             } else if (inCountdown && isMultiplayer) {
                 processNetwork(); 
             }
@@ -330,193 +367,82 @@ function update(elapsed:Float) {
 }
 
 function startGame() {
-    gameState = "PLAYING";
-    bird.acceleration.y = gravity;
+    gameState = "PLAYING"; bird.acceleration.y = gravity;
     if (lobbyText != null) lobbyText.destroy();
+    if (typingText != null) typingText.destroy();
     if (titleText != null) FlxTween.tween(titleText, {y: -200, alpha: 0}, 0.5, {ease: FlxEase.quartIn});
-    scoreText.visible = true;
-    startPipeTimer();
+    scoreText.visible = true; startPipeTimer();
 }
 
 function startMultiplayer() {
     if (lobbyText != null) lobbyText.destroy();
+    if (typingText != null) typingText.destroy();
     if (titleText != null) FlxTween.tween(titleText, {y: -200, alpha: 0}, 0.5, {ease: FlxEase.quartIn});
-    scoreText.visible = true;
-    p2Bird.visible = true;
+    scoreText.visible = true; p2Bird.visible = true;
     startCountdown(); 
 }
 
 function startCountdown() {
-    inCountdown = true;
-    gameState = "PLAYING";
-    bird.velocity.set(0, 0);
-    bird.acceleration.set(0, 0);
-    if (isMultiplayer) {
-        p2Bird.velocity.set(0, 0);
-        p2Bird.acceleration.set(0, 0);
-    }
+    inCountdown = true; gameState = "PLAYING";
+    bird.velocity.set(0, 0); bird.acceleration.set(0, 0);
+    if (isMultiplayer) { p2Bird.velocity.set(0, 0); p2Bird.acceleration.set(0, 0); }
     
     var count:Int = 3;
     var cdText:FlxText = new FlxText(0, 0, FlxG.width, "3", 128);
     cdText.setFormat(Paths.font(currentFont), 128, 0xFFFFFFFF, "center", 2, 0xFF000000);
-    cdText.screenCenter();
-    cdText.cameras = [uiCam];
-    add(cdText);
+    cdText.screenCenter(); cdText.cameras = [uiCam]; add(cdText);
 
     new FlxTimer().start(1, function(tmr) {
         count--;
         if (count <= 0) {
-            cdText.destroy();
-            isPaused = false;
-            inCountdown = false;
-            
-            bird.active = true;
-            bird.acceleration.y = gravity;
-            
-            if (isMultiplayer && !p2Dead) {
-                p2Bird.active = true;
-                p2Bird.acceleration.y = gravity;
-            }
-            
-            pipes.active = true;
-            powerups.active = true;
-            sky.active = true;
-            
+            cdText.destroy(); inCountdown = false;
+            bird.active = true; bird.acceleration.y = gravity;
+            if (isMultiplayer && !p2Dead) { p2Bird.active = true; p2Bird.acceleration.y = gravity; }
             startPipeTimer();
-            if (shieldTimerObj != null && hasShield) shieldTimerObj.active = true;
         } else {
-            cdText.text = Std.string(count);
-            FlxTween.tween(cdText.scale, {x: 1.2, y: 1.2}, 0.2, {type: FlxTween.PINGPONG});
-            FlxG.sound.play(Paths.sound("scrollMenu"), 0.6);
+            cdText.text = Std.string(count); FlxG.sound.play(Paths.sound("scrollMenu"), 0.6);
         }
     }, 3);
 }
 
-function pauseGame() {
-    isPaused = true;
-    bird.active = false;
-    pipes.active = false;
-    powerups.active = false;
-    pipeTimer.active = false;
-    sky.active = false; 
-    
-    if (shieldTimerObj != null && shieldTimerObj.active) shieldTimerObj.active = false;
-    
-    blurShader.amount = 3.0;
-    FlxG.camera.addShader(blurShader); 
-
-    persistentUpdate = true; 
-    persistentDraw = true;
-
-    var pauseSub = new ModSubState("substates/FlappyPause");
-    pauseSub.cameras = [uiCam];
-    openSubState(pauseSub);
-}
-
-function onSubStateClose(sub:ModSubState) {
-    FlxTween.num(3.0, 0, 0.4, {ease: FlxEase.quartOut}, function(v:Float) {
-        blurShader.amount = v;
-        if (v <= 0) FlxG.camera.removeShader(blurShader);
-    });
-    
-    persistentUpdate = true;
-    startCountdown();
-}
-
 function startPipeTimer() {
-    if (pipeTimer != null) pipeTimer.destroy();
-    pipeTimer = new FlxTimer().start(1.5, function(tmr) {
-        if (gameState == "PLAYING" && !isPaused && !inCountdown) spawnPipe();
-    }, 0);
+    pipeTimer = new FlxTimer().start(1.5, function(tmr) { if (gameState == "PLAYING" && !inCountdown) spawnPipe(); }, 0);
 }
 
 function spawnPipe() {
-    var gap:Float = 210;
-    var screenPos:Float = FlxG.random.float(100, FlxG.height - gap - 100);
+    var gap:Float = 210; var screenPos:Float = FlxG.random.float(100, FlxG.height - gap - 100);
 
-    var topSide = pipes.recycle(FlxSprite);
-    topSide.makeGraphic(80, Math.floor(screenPos), 0xFF006600);
-    topSide.reset(FlxG.width + 15, 0); topSide.ID = 2; pipes.add(topSide);
-
-    var topPipe = pipes.recycle(FlxSprite);
-    topPipe.makeGraphic(80, Math.floor(screenPos), 0xFF00FF00);
-    topPipe.reset(FlxG.width, 0); topPipe.ID = 0; pipes.add(topPipe);
-
-    var botSide = pipes.recycle(FlxSprite);
-    botSide.makeGraphic(80, Math.floor(FlxG.height - screenPos - gap), 0xFF006600); 
-    botSide.reset(FlxG.width + 15, screenPos + gap); botSide.ID = 2; pipes.add(botSide);
-
-    var bottomPipe = pipes.recycle(FlxSprite);
-    bottomPipe.makeGraphic(80, Math.floor(FlxG.height - screenPos - gap), 0xFF00FF00); 
-    bottomPipe.reset(FlxG.width, screenPos + gap); bottomPipe.ID = 0; pipes.add(bottomPipe);
-
-    if (FlxG.random.bool(25)) {
-        var pu = powerups.recycle(FlxSprite);
-        if (FlxG.random.bool(20)) {
-            pu.makeGraphic(30, 30, 0xFF00FFFF); pu.ID = 2;
-        } else {
-            pu.makeGraphic(30, 30, 0xFFFFD700); pu.ID = 1;
-        }
-        pu.reset(FlxG.width + 25, screenPos + (gap / 2) - 15);
-        powerups.add(pu);
-    }
+    var tS = pipes.recycle(FlxSprite); tS.makeGraphic(80, Math.floor(screenPos), 0xFF006600); tS.reset(FlxG.width+15, 0); tS.ID=2; pipes.add(tS);
+    var tP = pipes.recycle(FlxSprite); tP.makeGraphic(80, Math.floor(screenPos), 0xFF00FF00); tP.reset(FlxG.width, 0); tP.ID=0; pipes.add(tP);
+    var bS = pipes.recycle(FlxSprite); bS.makeGraphic(80, Math.floor(FlxG.height-screenPos-gap), 0xFF006600); bS.reset(FlxG.width+15, screenPos+gap); bS.ID=2; pipes.add(bS);
+    var bP = pipes.recycle(FlxSprite); bP.makeGraphic(80, Math.floor(FlxG.height-screenPos-gap), 0xFF00FF00); bP.reset(FlxG.width, screenPos+gap); bP.ID=0; pipes.add(bP);
 }
 
 function gameOver() {
     if (gameState == "DEAD") return;
     gameState = "DEAD";
-    
     bird.velocity.set(0, 0); bird.acceleration.set(0, 0);
     if (isMultiplayer) { p2Bird.velocity.set(0, 0); p2Bird.acceleration.set(0, 0); }
-    sky.velocity.x = 0;
-    pipes.forEach(function(p) { p.velocity.x = 0; });
-    powerups.forEach(function(pu) { pu.velocity.x = 0; });
-    
+    sky.velocity.x = 0; pipes.forEach(function(p) { p.velocity.x = 0; });
     if (pipeTimer != null) pipeTimer.cancel();
-    if (shieldTimerObj != null) shieldTimerObj.cancel();
-
+    
     var finalScore = Math.floor(score / 2);
-    if (finalScore > FlxG.save.data.flappyHighscore) {
-        FlxG.save.data.flappyHighscore = finalScore;
-        FlxG.save.flush();
-    }
-
-    FlxG.camera.shake(0.01, 0.2);
-    FlxG.sound.play(Paths.sound("death_sfx")); 
+    if (!isMultiplayer) safeSend("SUBMIT_SCORE:" + finalScore + "\n"); // Submit solo scores too!
 
     var resultStr = "GAME OVER\nSCORE: " + finalScore;
-    var resultColor = 0xFFFF0000;
-
     if (isMultiplayer) {
         var p2Final = Math.floor(p2Score / 2);
-        if (finalScore > p2Final) {
-            resultStr = "YOU WON!\n" + finalScore + " VS " + p2Final;
-            resultColor = 0xFF00FF00;
-        } else if (finalScore < p2Final) {
-            resultStr = "YOU LOST...\n" + finalScore + " VS " + p2Final;
-        } else {
-            resultStr = "TIE GAME!\n" + finalScore + " VS " + p2Final;
-            resultColor = 0xFFFFFF00;
-        }
+        if (finalScore > p2Final) resultStr = "YOU WON!\n" + finalScore + " VS " + p2Final;
+        else if (finalScore < p2Final) resultStr = "YOU LOST...\n" + finalScore + " VS " + p2Final;
+        else resultStr = "TIE GAME!\n" + finalScore + " VS " + p2Final;
     }
 
-    var lostText:FlxText = new FlxText(0, 0, FlxG.width, resultStr, 48);
-    lostText.setFormat(Paths.font(currentFont), 48, resultColor, "center", 2, 0xFF000000);
-    lostText.screenCenter();
-    lostText.y -= 50;
-    lostText.cameras = [uiCam];
-    add(lostText);
-
-    var restartText:FlxText = new FlxText(0, FlxG.height - 100, FlxG.width, "[ENTER] RETRY   [BACK] MENU", 24);
-    restartText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 2, 0xFF000000);
-    restartText.cameras = [uiCam];
-    add(restartText);
+    var lostText = new FlxText(0, 0, FlxG.width, resultStr, 48);
+    lostText.setFormat(Paths.font(currentFont), 48, 0xFFFFFFFF, "center", 2, 0xFF000000);
+    lostText.screenCenter(); lostText.y -= 50; lostText.cameras = [uiCam]; add(lostText);
 }
 
 function destroy() {
     if (uiCam != null && FlxG.cameras.list.contains(uiCam)) FlxG.cameras.remove(uiCam);
-    if (connection != null) {
-        try { connection.socket.close(); } catch(e:Dynamic) {}
-        connection.destroy();
-    }
+    if (connection != null) { try { connection.socket.close(); } catch(e:Dynamic) {} connection.destroy(); }
 }
