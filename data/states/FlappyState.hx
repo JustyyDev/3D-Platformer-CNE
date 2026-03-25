@@ -19,7 +19,7 @@ var inCountdown:Bool = false;
 
 // Entities
 var bird:FlxSprite;
-var p2Bird:FlxSprite; // P2 Ghost Bird
+var p2Bird:FlxSprite;
 var pipes:FlxTypedGroup<FlxSprite>;
 var powerups:FlxTypedGroup<FlxSprite>; 
 
@@ -27,7 +27,7 @@ var powerups:FlxTypedGroup<FlxSprite>;
 var scoreText:FlxText;
 var highscoreText:FlxText;
 var newBestPopup:FlxText; 
-var lobbyText:FlxText; // Multiplayer Lobby Text
+var lobbyText:FlxText;
 var uiCam:FlxCamera;
 
 var pipeTimer:FlxTimer;
@@ -51,7 +51,8 @@ var connection:Socket;
 var p2Score:Int = 0;
 var p2Dead:Bool = false;
 var iAmDead:Bool = false;
-var netBuffer:String = ""; // Prevents TCP packet merging
+var netBuffer:String = ""; 
+var connectionEstablished:Bool = false; 
 
 function create() {
     if (FlxG.save.data.flappyHighscore == null) FlxG.save.data.flappyHighscore = 0;
@@ -84,19 +85,16 @@ function create() {
     powerups = new FlxTypedGroup();
     add(powerups);
 
-    // Player 1 (Yellow)
     bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(45, 45, 0xFFFFFF00); 
     bird.antialiasing = true;
     add(bird);
 
-    // Player 2 (Red Ghost)
     p2Bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(45, 45, 0xFFFF0000); 
     p2Bird.antialiasing = true;
-    p2Bird.alpha = 0.5; // Transparent
+    p2Bird.alpha = 0.5; 
     p2Bird.visible = false;
     add(p2Bird);
 
-    // UI ELEMENTS
     scoreText = new FlxText(0, 50, FlxG.width, "0", 64);
     scoreText.setFormat(Paths.font(currentFont), 64, 0xFFFFFFFF, "center", 1, 0xFF000000);
     scoreText.cameras = [uiCam];
@@ -120,38 +118,50 @@ function create() {
 }
 
 // --- NETWORK PROCESSING ---
+function safeSend(msg:String) {
+    if (connection != null && connectionEstablished) {
+        try {
+            connection.write(msg);
+        } catch(e:Dynamic) {}
+    }
+}
+
 function processNetwork() {
-    if (connection == null) return;
+    if (connection == null || !connectionEstablished) return;
     try {
         var data = connection.read();
         if (data != null && data != "") {
             netBuffer += data;
-            var msgs = netBuffer.split("\n");
-            netBuffer = msgs.pop(); // Keep partial packets in buffer
-            
-            for (msg in msgs) {
-                if (msg == "") continue;
-                var parts = msg.split(":");
-                switch(parts[0]) {
-                    case "SEED":
-                        FlxG.random.initialSeed = Std.parseInt(parts[1]);
-                        startMultiplayer();
-                    case "Y":
-                        p2Bird.y = Std.parseFloat(parts[1]);
-                    case "JUMP":
-                        p2Bird.velocity.y = -500;
-                    case "SCORE":
-                        p2Score = Std.parseInt(parts[1]);
-                        updateScoreUI();
-                    case "DEAD":
-                        p2Dead = true;
-                        p2Bird.velocity.x = pipeSpeed; 
-                        p2Bird.acceleration.y = gravity;
-                        FlxG.sound.play(Paths.sound("death_sfx"), 0.5);
+            if (netBuffer.indexOf("\n") != -1) {
+                var msgs = netBuffer.split("\n");
+                netBuffer = msgs.pop(); // Keep partial packets in buffer
+                
+                for (msg in msgs) {
+                    if (msg == "") continue;
+                    var parts = msg.split(":");
+                    switch(parts[0]) {
+                        case "SEED":
+                            FlxG.random.initialSeed = Std.parseInt(parts[1]);
+                            startMultiplayer();
+                        case "Y":
+                            p2Bird.y = Std.parseFloat(parts[1]);
+                        case "JUMP":
+                            p2Bird.velocity.y = -500;
+                        case "SCORE":
+                            p2Score = Std.parseInt(parts[1]);
+                            updateScoreUI();
+                        case "DEAD":
+                            p2Dead = true;
+                            p2Bird.velocity.x = pipeSpeed; 
+                            p2Bird.acceleration.y = gravity;
+                            FlxG.sound.play(Paths.sound("death_sfx"), 0.5);
+                    }
                 }
             }
         }
-    } catch(e:Dynamic) {}
+    } catch(e:Dynamic) {
+        // In non-blocking mode, reading an empty socket throws an error. We just ignore it.
+    }
 }
 
 function updateScoreUI() {
@@ -174,12 +184,12 @@ function updateScoreUI() {
 function killMe() {
     if (iAmDead) return;
     iAmDead = true;
-    bird.velocity.x = pipeSpeed; // Fall behind the pipes
+    bird.velocity.x = pipeSpeed; 
     bird.acceleration.y = gravity; 
     FlxG.sound.play(Paths.sound("death_sfx")); 
     
     if (isMultiplayer) {
-        connection.write("DEAD\n");
+        safeSend("DEAD\n");
         var deadTxt = new FlxText(0, FlxG.height * 0.2, FlxG.width, "YOU DIED! SPECTATING P2...", 32);
         deadTxt.setFormat(Paths.font(currentFont), 32, 0xFFFF0000, "center", 1, 0xFF000000);
         deadTxt.cameras = [uiCam];
@@ -202,22 +212,27 @@ function update(elapsed:Float) {
                 lobbyText.text = "HOSTING ON 8080... WAITING FOR P2";
                 gameState = "HOSTING";
                 
-                mainSocket = new Socket();
-                mainSocket.socket.bind(new Host("0.0.0.0"), 8080);
-                mainSocket.socket.listen(1);
-                mainSocket.socket.setBlocking(false); // Keeps game unfrozen
+                try {
+                    mainSocket = new Socket();
+                    mainSocket.socket.bind(new Host("0.0.0.0"), 8080);
+                    mainSocket.socket.listen(1);
+                    mainSocket.socket.setBlocking(false); // Make it non-blocking immediately
+                } catch(e:Dynamic) {}
+
             } else if (FlxG.keys.justPressed.J) {
                 lobbyText.text = "CONNECTING TO HOST...";
                 gameState = "JOINING";
                 
-                connection = new Socket();
                 try {
+                    connection = new Socket();
                     connection.connect(new Host("127.0.0.1"), 8080);
                     connection.socket.setBlocking(false);
+                    connectionEstablished = true;
+                    
+                    lobbyText.text = "CONNECTED! WAITING FOR HOST...";
                     isMultiplayer = true;
                     isHost = false;
                     gameState = "WAITING_FOR_SEED";
-                    lobbyText.text = "CONNECTED! WAITING FOR START...";
                 } catch(e:Dynamic) {
                     lobbyText.text = "CONNECTION FAILED! [H] HOST / [J] JOIN";
                     gameState = "WAITING";
@@ -226,18 +241,22 @@ function update(elapsed:Float) {
 
         case "HOSTING":
             bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
+            // Poll for a connection every frame. Fails silently if no one is connecting yet.
             try {
                 var rawSocket = mainSocket.socket.accept();
                 if (rawSocket != null) {
                     connection = new Socket(rawSocket);
                     connection.socket.setBlocking(false);
+                    connectionEstablished = true;
+                    
+                    lobbyText.text = "PLAYER 2 JOINED! STARTING...";
                     isMultiplayer = true;
                     isHost = true;
+                    gameState = "WAITING_FOR_SEED";
                     
-                    // Host dictates the pipe RNG seed so screens match identically
                     var seed = FlxG.random.int(0, 999999);
                     FlxG.random.initialSeed = seed;
-                    connection.write("SEED:" + seed + "\n");
+                    safeSend("SEED:" + seed + "\n");
                     startMultiplayer();
                 }
             } catch(e:Dynamic) {}
@@ -248,7 +267,7 @@ function update(elapsed:Float) {
 
         case "PLAYING":
             if (FlxG.keys.justPressed.P || FlxG.keys.justPressed.ESCAPE) {
-                if (!isMultiplayer) pauseGame(); // Pausing disabled in MP Racing
+                if (!isMultiplayer) pauseGame(); 
             }
             
             if (isMultiplayer) processNetwork();
@@ -257,7 +276,7 @@ function update(elapsed:Float) {
                 if (!iAmDead) {
                     if (FlxG.keys.justPressed.SPACE || FlxG.keys.justPressed.ENTER) {
                         bird.velocity.y = -500;
-                        if (isMultiplayer) connection.write("JUMP\n");
+                        if (isMultiplayer) safeSend("JUMP\n");
                     }
                     bird.angle = FlxMath.lerp(bird.angle, (bird.velocity.y < 0) ? -20 : 90, elapsed * 8);
 
@@ -280,15 +299,13 @@ function update(elapsed:Float) {
                         }
                         pu.kill();
                         updateScoreUI();
-                        // Send new score via network immediately
-                        if (isMultiplayer) connection.write("SCORE:" + score + "\n");
+                        if (isMultiplayer) safeSend("SCORE:" + score + "\n");
                     });
 
-                    // Send Y Position Network Sync
-                    if (isMultiplayer && FlxG.game.ticks % 2 == 0) connection.write("Y:" + bird.y + "\n");
+                    // Sync Y less frequently to prevent buffer flooding
+                    if (isMultiplayer && FlxG.game.ticks % 3 == 0) safeSend("Y:" + bird.y + "\n");
                 }
 
-                // Smooth P2 Animation
                 if (isMultiplayer && !p2Dead) {
                     p2Bird.angle = FlxMath.lerp(p2Bird.angle, (p2Bird.velocity.y < 0) ? -20 : 90, elapsed * 8);
                 }
@@ -300,7 +317,7 @@ function update(elapsed:Float) {
                     if (p.ID == 0 && p.x + p.width < bird.x && !iAmDead) {
                         p.ID = 1;
                         score++;
-                        if (isMultiplayer) connection.write("SCORE:" + score + "\n");
+                        if (isMultiplayer) safeSend("SCORE:" + score + "\n");
                         updateScoreUI();
                         FlxG.sound.play(Paths.sound("confirmMenu"), 0.4);
                     }
@@ -311,14 +328,13 @@ function update(elapsed:Float) {
                     if (pu.x + pu.width < 0) pu.kill();
                 });
                 
-                // End game triggers
                 if (isMultiplayer) {
                     if (iAmDead && p2Dead) gameOver();
                 } else {
                     if (iAmDead) gameOver();
                 }
             } else if (inCountdown && isMultiplayer) {
-                processNetwork(); // Keep fetching packets so jump isn't desynced
+                processNetwork(); 
             }
 
         case "DEAD":
@@ -337,7 +353,7 @@ function startGame() {
 function startMultiplayer() {
     if (lobbyText != null) lobbyText.destroy();
     p2Bird.visible = true;
-    startCountdown(); // Give players a 3-2-1
+    startCountdown(); 
 }
 
 function startCountdown() {
@@ -477,7 +493,6 @@ function gameOver() {
     FlxG.camera.shake(0.01, 0.2);
     FlxG.sound.play(Paths.sound("death_sfx")); 
 
-    // --- GAME OVER TEXT RESOLUTION ---
     var resultStr = "GAME OVER\nSCORE: " + finalScore;
     if (isMultiplayer) {
         var p2Final = Math.floor(p2Score / 2);
@@ -501,6 +516,12 @@ function gameOver() {
 
 function destroy() {
     if (uiCam != null && FlxG.cameras.list.contains(uiCam)) FlxG.cameras.remove(uiCam);
-    if (connection != null) connection.destroy();
-    if (mainSocket != null) mainSocket.destroy();
+    if (connection != null) {
+        try { connection.socket.close(); } catch(e:Dynamic) {}
+        connection.destroy();
+    }
+    if (mainSocket != null) {
+        try { mainSocket.socket.close(); } catch(e:Dynamic) {}
+        mainSocket.destroy();
+    }
 }
