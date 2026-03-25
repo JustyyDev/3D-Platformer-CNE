@@ -15,8 +15,8 @@ import sys.net.Host;
 import funkin.backend.system.net.Socket;
 
 /**
- * FLAPPY MULTIPLAYER ULTRA v2.2
- * Fixes: Full-screen sky, Duplicate fetchLeaderboard error, Added Server Debug Log
+ * FLAPPY MULTIPLAYER ULTRA v2.3
+ * Fixes: Full-screen sky, Duplicate fetchLeaderboard error, Difficulty scaling
  */
 
 var gameState:String = "NICKNAME"; 
@@ -35,7 +35,8 @@ var scoreText:FlxText;
 var lobbyText:FlxText;
 var typingText:FlxText;
 var statusText:FlxText;
-var debugLog:FlxText; // The New Server Log
+var levelText:FlxText; // Level Up UI
+var debugLog:FlxText;
 var emoteText:FlxText;
 var p2EmoteText:FlxText;
 var leaderboardGroup:FlxTypedGroup<FlxText>;
@@ -45,8 +46,12 @@ var pipeTimer:FlxTimer;
 var shieldTimerObj:FlxTimer; 
 var ghostTimerObj:FlxTimer;
 
+// Difficulty & Stats
 var score:Int = 0;
 var p2Score:Int = 0;
+var currentLevel:Int = 1;
+var pipeGap:Float = 230;
+var pipeInterval:Float = 1.6;
 var pipeSpeed:Float = -300;
 var gravity:Float = 1500;
 var jumpForce:Float = -500;
@@ -74,7 +79,7 @@ function create() {
     uiCam.bgColor = 0x00000000;
     FlxG.cameras.add(uiCam, false);
 
-    // FIXED SKY: Covers the whole screen properly
+    // FIXED SKY: Covers whole screen regardless of asset height
     sky = new FlxBackdrop(Paths.image('menus/flappy/sky'), 0x01, 0, 0);
     sky.setGraphicSize(0, FlxG.height); 
     sky.updateHitbox();
@@ -92,8 +97,7 @@ function create() {
 
     setupUI();
 
-    if (myNickname == "Player") switchState("NICKNAME");
-    else switchState("MENU");
+    switchState(myNickname == "Player" ? "NICKNAME" : "MENU");
 
     fetchStatus();
     new FlxTimer().start(10, function(t) { fetchStatus(); }, 0);
@@ -108,12 +112,15 @@ function setupUI() {
     scoreText.setFormat(Paths.font(currentFont), 64, 0xFFFFFFFF, "center", 2, 0xFF000000);
     scoreText.cameras = [uiCam]; scoreText.visible = false; add(scoreText);
 
+    levelText = new FlxText(0, 110, FlxG.width, "LEVEL 1", 32);
+    levelText.setFormat(Paths.font(currentFont), 32, 0xFF00FFCC, "center", 2, 0xFF000000);
+    levelText.cameras = [uiCam]; levelText.visible = false; add(levelText);
+
     statusText = new FlxText(20, 20, 400, "SERVER: CHECKING...", 20);
     statusText.setFormat(Paths.font(currentFont), 20, 0xFFFFFFFF, "left", 2, 0xFF000000);
     statusText.cameras = [uiCam]; add(statusText);
 
-    // DEBUG LOG: Shows server communication
-    debugLog = new FlxText(FlxG.width - 320, 60, 300, "", 14);
+    debugLog = new FlxText(FlxG.width - 320, 20, 300, "", 14);
     debugLog.setFormat(Paths.font(currentFont), 14, 0xFF00FF00, "right", 1, 0xFF000000);
     debugLog.cameras = [uiCam]; add(debugLog);
 
@@ -134,12 +141,39 @@ function setupUI() {
     p2EmoteText.cameras = [uiCam]; add(p2EmoteText);
 }
 
+// --- DIFFICULTY LOGIC ---
+
+function checkDifficulty() {
+    var newLevel = Math.floor(score / 10) + 1;
+    if (newLevel > currentLevel) {
+        currentLevel = newLevel;
+        pipeSpeed -= 35; 
+        pipeGap = Math.max(160, pipeGap - 10);
+        pipeInterval = Math.max(0.7, pipeInterval - 0.12);
+        
+        startPipeTimer(); // Restart with faster timing
+        
+        levelText.text = "LEVEL " + currentLevel;
+        levelText.scale.set(1.5, 1.5);
+        FlxTween.tween(levelText.scale, {x: 1, y: 1}, 0.6, {ease: FlxEase.elasticOut});
+        FlxG.camera.flash(0x33FFFFFF, 0.4);
+        logServer("LEVEL UP: " + currentLevel);
+    }
+}
+
+function getPipeColor():Int {
+    if (currentLevel >= 5) return 0xFFFF0000;
+    if (currentLevel >= 3) return 0xFF0099FF;
+    if (currentLevel >= 2) return 0xFFFF9900;
+    return 0xFF22AA22;
+}
+
+// --- NETWORK FIXES ---
+
 function logServer(msg:String) {
     debugLog.text = msg + "\n" + debugLog.text;
     if (debugLog.text.length > 200) debugLog.text = debugLog.text.substring(0, 200);
 }
-
-// --- NETWORK FIXES ---
 
 function fetchStatus() {
     try {
@@ -289,7 +323,9 @@ function updatePlaying(elapsed:Float) {
         p.velocity.x = pipeSpeed;
         if (p.x < -100) p.kill();
         if (p.ID == 0 && p.x + p.width < bird.x && !iAmDead) {
-            p.ID = 99; score++; updateScoreUI();
+            p.ID = 99; score++; 
+            updateScoreUI();
+            checkDifficulty();
             if (isMultiplayer) safeSend("SCORE:" + score + "\n");
         }
     });
@@ -297,8 +333,6 @@ function updatePlaying(elapsed:Float) {
     powerups.forEachAlive(function(pu) { pu.velocity.x = pipeSpeed; });
     if (iAmDead && (isMultiplayer ? p2Dead : true)) gameOver();
 }
-
-// --- LOGIC FUNCTIONS ---
 
 function spawnVFX(obj:FlxSprite, col:Int) {
     var trail = new FlxSprite(obj.x, obj.y).makeGraphic(40, 40, col);
@@ -310,14 +344,14 @@ function spawnVFX(obj:FlxSprite, col:Int) {
 }
 
 function spawnPipe() {
-    var gap = 220;
-    var pipeY = FlxG.random.float(100, FlxG.height - gap - 100);
-    var bPipe = pipes.recycle(FlxSprite); bPipe.makeGraphic(80, FlxG.height, 0xFF22AA22); bPipe.reset(FlxG.width, pipeY + gap); bPipe.ID = 0; pipes.add(bPipe);
-    var tPipe = pipes.recycle(FlxSprite); tPipe.makeGraphic(80, FlxG.height, 0xFF22AA22); tPipe.reset(FlxG.width, pipeY - FlxG.height); tPipe.ID = 1; pipes.add(tPipe);
+    var pipeY = FlxG.random.float(100, FlxG.height - pipeGap - 100);
+    var pCol = getPipeColor();
+    var bPipe = pipes.recycle(FlxSprite); bPipe.makeGraphic(80, FlxG.height, pCol); bPipe.reset(FlxG.width, pipeY + pipeGap); bPipe.ID = 0; pipes.add(bPipe);
+    var tPipe = pipes.recycle(FlxSprite); tPipe.makeGraphic(80, FlxG.height, pCol); tPipe.reset(FlxG.width, pipeY - FlxG.height); tPipe.ID = 1; pipes.add(tPipe);
 
     if (FlxG.random.bool(20)) {
         var type = FlxG.random.int(1, 4);
-        spawnBooster(type, FlxG.width + 100, pipeY + (gap / 2) - 20, true);
+        spawnBooster(type, FlxG.width + 100, pipeY + (pipeGap / 2) - 20, true);
     }
 }
 
@@ -360,7 +394,8 @@ function gameOver() {
 function startGame(multi:Bool) {
     isMultiplayer = multi; gameState = "PLAYING";
     titleText.visible = false; lobbyText.visible = false; typingText.visible = false;
-    scoreText.visible = true; bird.acceleration.y = gravity;
+    scoreText.visible = true; levelText.visible = true; bird.acceleration.y = gravity;
+    currentLevel = 1; pipeSpeed = -300; pipeGap = 230; pipeInterval = 1.6;
     if (!multi) startPipeTimer();
 }
 
@@ -391,11 +426,14 @@ function startCountdown() {
     }, 3);
 }
 
-function startPipeTimer() { pipeTimer = new FlxTimer().start(1.5, function(tmr) { if (gameState == "PLAYING" && !inCountdown) spawnPipe(); }, 0); }
+function startPipeTimer() { 
+    if (pipeTimer != null) pipeTimer.cancel();
+    pipeTimer = new FlxTimer().start(pipeInterval, function(tmr) { if (gameState == "PLAYING" && !inCountdown) spawnPipe(); }, 0); 
+}
 
 function updateScoreUI() {
     if (isMultiplayer) scoreText.text = myNickname + ": " + score + " | " + opponentName + ": " + p2Score;
-    else scoreText.text = Std.string(score);
+    else scoreText.text = "SCORE: " + score;
 }
 
 function renderLeaderboard(json:String) {
