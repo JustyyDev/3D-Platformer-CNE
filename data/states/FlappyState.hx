@@ -24,6 +24,7 @@ var pipes:FlxTypedGroup<FlxSprite>;
 var powerups:FlxTypedGroup<FlxSprite>; 
 
 // UI
+var titleText:FlxText;
 var scoreText:FlxText;
 var highscoreText:FlxText;
 var newBestPopup:FlxText; 
@@ -44,9 +45,8 @@ var hasShield:Bool = false;
 var currentFont:String = "vcr.ttf"; 
 
 // --- MULTIPLAYER VARIABLES ---
+var SERVER_IP:String = "144.21.35.78"; // Your Oracle VPS IP!
 var isMultiplayer:Bool = false;
-var isHost:Bool = false;
-var mainSocket:Socket;
 var connection:Socket;
 var p2Score:Int = 0;
 var p2Dead:Bool = false;
@@ -95,24 +95,31 @@ function create() {
     p2Bird.visible = false;
     add(p2Bird);
 
+    // --- POLISHED UI ELEMENTS ---
+    titleText = new FlxText(0, FlxG.height * 0.2, FlxG.width, "FLAPPY BIRD", 96);
+    titleText.setFormat(Paths.font(currentFont), 96, 0xFFFFFFFF, "center", 2, 0xFF000000);
+    titleText.cameras = [uiCam];
+    add(titleText);
+
     scoreText = new FlxText(0, 50, FlxG.width, "0", 64);
-    scoreText.setFormat(Paths.font(currentFont), 64, 0xFFFFFFFF, "center", 1, 0xFF000000);
+    scoreText.setFormat(Paths.font(currentFont), 64, 0xFFFFFFFF, "center", 2, 0xFF000000);
     scoreText.cameras = [uiCam];
+    scoreText.visible = false; // Hide until game starts
     add(scoreText);
 
     highscoreText = new FlxText(20, 20, FlxG.width, "BEST: " + FlxG.save.data.flappyHighscore, 24);
-    highscoreText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "left", 1, 0xFF000000);
+    highscoreText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "left", 2, 0xFF000000);
     highscoreText.cameras = [uiCam];
     add(highscoreText);
 
-    newBestPopup = new FlxText(20, 45, FlxG.width, "NEW BEST!", 16);
-    newBestPopup.setFormat(Paths.font(currentFont), 16, 0xFFFFEE00, "left", 1, 0xFF000000);
+    newBestPopup = new FlxText(20, 55, FlxG.width, "NEW BEST!", 16);
+    newBestPopup.setFormat(Paths.font(currentFont), 16, 0xFFFFEE00, "left", 2, 0xFF000000);
     newBestPopup.cameras = [uiCam];
     newBestPopup.alpha = 0; 
     add(newBestPopup);
 
-    lobbyText = new FlxText(0, FlxG.height * 0.75, FlxG.width, "[SPACE] Solo   [H] Host   [J] Join", 32);
-    lobbyText.setFormat(Paths.font(currentFont), 32, 0xFFFFEE00, "center", 1, 0xFF000000);
+    lobbyText = new FlxText(0, FlxG.height * 0.75, FlxG.width, "[SPACE] Play Solo   [O] Play Online", 32);
+    lobbyText.setFormat(Paths.font(currentFont), 32, 0xFFFFEE00, "center", 2, 0xFF000000);
     lobbyText.cameras = [uiCam];
     add(lobbyText);
 }
@@ -134,7 +141,7 @@ function processNetwork() {
             netBuffer += data;
             if (netBuffer.indexOf("\n") != -1) {
                 var msgs = netBuffer.split("\n");
-                netBuffer = msgs.pop(); // Keep partial packets in buffer
+                netBuffer = msgs.pop(); 
                 
                 for (msg in msgs) {
                     if (msg == "") continue;
@@ -155,13 +162,22 @@ function processNetwork() {
                             p2Bird.velocity.x = pipeSpeed; 
                             p2Bird.acceleration.y = gravity;
                             FlxG.sound.play(Paths.sound("death_sfx"), 0.5);
+                        case "OPPONENT_DISCONNECTED":
+                            if (!iAmDead && !p2Dead && gameState == "PLAYING") {
+                                p2Dead = true;
+                                p2Bird.visible = false;
+                                var dcText = new FlxText(0, FlxG.height * 0.3, FlxG.width, "OPPONENT LEFT!\nYOU WIN!", 48);
+                                dcText.setFormat(Paths.font(currentFont), 48, 0xFF00FF00, "center", 2, 0xFF000000);
+                                dcText.cameras = [uiCam];
+                                add(dcText);
+                                FlxG.sound.play(Paths.sound("confirmMenu"), 1.0);
+                                gameOver();
+                            }
                     }
                 }
             }
         }
-    } catch(e:Dynamic) {
-        // In non-blocking mode, reading an empty socket throws an error. We just ignore it.
-    }
+    } catch(e:Dynamic) {}
 }
 
 function updateScoreUI() {
@@ -190,8 +206,8 @@ function killMe() {
     
     if (isMultiplayer) {
         safeSend("DEAD\n");
-        var deadTxt = new FlxText(0, FlxG.height * 0.2, FlxG.width, "YOU DIED! SPECTATING P2...", 32);
-        deadTxt.setFormat(Paths.font(currentFont), 32, 0xFFFF0000, "center", 1, 0xFF000000);
+        var deadTxt = new FlxText(0, FlxG.height * 0.2, FlxG.width, "YOU DIED! SPECTATING...", 32);
+        deadTxt.setFormat(Paths.font(currentFont), 32, 0xFFFF0000, "center", 2, 0xFF000000);
         deadTxt.cameras = [uiCam];
         add(deadTxt);
     }
@@ -205,69 +221,40 @@ function update(elapsed:Float) {
 
     switch (gameState) {
         case "WAITING":
+            // Smooth idle bobbing & pulsing text
             bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
+            lobbyText.alpha = 0.5 + (Math.sin(FlxG.game.ticks / 300) * 0.5);
+
             if (FlxG.keys.justPressed.SPACE) {
                 startGame();
-            } else if (FlxG.keys.justPressed.H) {
-                lobbyText.text = "HOSTING ON 8080... WAITING FOR P2";
-                gameState = "HOSTING";
-                
-                try {
-                    mainSocket = new Socket();
-                    mainSocket.socket.bind(new Host("0.0.0.0"), 8080);
-                    mainSocket.socket.listen(1);
-                    mainSocket.socket.setBlocking(false); // Make it non-blocking immediately
-                } catch(e:Dynamic) {}
-
-            } else if (FlxG.keys.justPressed.J) {
-                lobbyText.text = "CONNECTING TO HOST...";
-                gameState = "JOINING";
+            } else if (FlxG.keys.justPressed.O) {
+                lobbyText.alpha = 1.0;
+                lobbyText.text = "CONNECTING TO SERVER...";
+                gameState = "CONNECTING";
                 
                 try {
                     connection = new Socket();
-                    connection.connect(new Host("127.0.0.1"), 8080);
+                    connection.connect(new Host(SERVER_IP), 8080);
                     connection.socket.setBlocking(false);
                     connectionEstablished = true;
-                    
-                    lobbyText.text = "CONNECTED! WAITING FOR HOST...";
                     isMultiplayer = true;
-                    isHost = false;
+                    
+                    lobbyText.text = "CONNECTED! WAITING FOR OPPONENT...";
                     gameState = "WAITING_FOR_SEED";
                 } catch(e:Dynamic) {
-                    lobbyText.text = "CONNECTION FAILED! [H] HOST / [J] JOIN";
+                    lobbyText.text = "SERVER OFFLINE! [O] TO RETRY";
                     gameState = "WAITING";
                 }
             }
 
-        case "HOSTING":
-            bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
-            // Poll for a connection every frame. Fails silently if no one is connecting yet.
-            try {
-                var rawSocket = mainSocket.socket.accept();
-                if (rawSocket != null) {
-                    connection = new Socket(rawSocket);
-                    connection.socket.setBlocking(false);
-                    connectionEstablished = true;
-                    
-                    lobbyText.text = "PLAYER 2 JOINED! STARTING...";
-                    isMultiplayer = true;
-                    isHost = true;
-                    gameState = "WAITING_FOR_SEED";
-                    
-                    var seed = FlxG.random.int(0, 999999);
-                    FlxG.random.initialSeed = seed;
-                    safeSend("SEED:" + seed + "\n");
-                    startMultiplayer();
-                }
-            } catch(e:Dynamic) {}
-
         case "WAITING_FOR_SEED":
             bird.y = (FlxG.height / 2) + (Math.sin(FlxG.game.ticks / 500) * 25);
+            lobbyText.alpha = 0.5 + (Math.sin(FlxG.game.ticks / 300) * 0.5);
             processNetwork();
 
         case "PLAYING":
             if (FlxG.keys.justPressed.P || FlxG.keys.justPressed.ESCAPE) {
-                if (!isMultiplayer) pauseGame(); 
+                if (!isMultiplayer) pauseGame(); // Disabled in multiplayer to prevent desync
             }
             
             if (isMultiplayer) processNetwork();
@@ -302,7 +289,6 @@ function update(elapsed:Float) {
                         if (isMultiplayer) safeSend("SCORE:" + score + "\n");
                     });
 
-                    // Sync Y less frequently to prevent buffer flooding
                     if (isMultiplayer && FlxG.game.ticks % 3 == 0) safeSend("Y:" + bird.y + "\n");
                 }
 
@@ -347,11 +333,15 @@ function startGame() {
     gameState = "PLAYING";
     bird.acceleration.y = gravity;
     if (lobbyText != null) lobbyText.destroy();
+    if (titleText != null) FlxTween.tween(titleText, {y: -200, alpha: 0}, 0.5, {ease: FlxEase.quartIn});
+    scoreText.visible = true;
     startPipeTimer();
 }
 
 function startMultiplayer() {
     if (lobbyText != null) lobbyText.destroy();
+    if (titleText != null) FlxTween.tween(titleText, {y: -200, alpha: 0}, 0.5, {ease: FlxEase.quartIn});
+    scoreText.visible = true;
     p2Bird.visible = true;
     startCountdown(); 
 }
@@ -368,7 +358,7 @@ function startCountdown() {
     
     var count:Int = 3;
     var cdText:FlxText = new FlxText(0, 0, FlxG.width, "3", 128);
-    cdText.setFormat(Paths.font(currentFont), 128, 0xFFFFFFFF, "center", 1, 0xFF000000);
+    cdText.setFormat(Paths.font(currentFont), 128, 0xFFFFFFFF, "center", 2, 0xFF000000);
     cdText.screenCenter();
     cdText.cameras = [uiCam];
     add(cdText);
@@ -396,6 +386,7 @@ function startCountdown() {
             if (shieldTimerObj != null && hasShield) shieldTimerObj.active = true;
         } else {
             cdText.text = Std.string(count);
+            FlxTween.tween(cdText.scale, {x: 1.2, y: 1.2}, 0.2, {type: FlxTween.PINGPONG});
             FlxG.sound.play(Paths.sound("scrollMenu"), 0.6);
         }
     }, 3);
@@ -494,22 +485,30 @@ function gameOver() {
     FlxG.sound.play(Paths.sound("death_sfx")); 
 
     var resultStr = "GAME OVER\nSCORE: " + finalScore;
+    var resultColor = 0xFFFF0000;
+
     if (isMultiplayer) {
         var p2Final = Math.floor(p2Score / 2);
-        if (finalScore > p2Final) resultStr = "YOU WON!\n" + finalScore + " VS " + p2Final;
-        else if (finalScore < p2Final) resultStr = "YOU LOST...\n" + finalScore + " VS " + p2Final;
-        else resultStr = "TIE GAME!\n" + finalScore + " VS " + p2Final;
+        if (finalScore > p2Final) {
+            resultStr = "YOU WON!\n" + finalScore + " VS " + p2Final;
+            resultColor = 0xFF00FF00;
+        } else if (finalScore < p2Final) {
+            resultStr = "YOU LOST...\n" + finalScore + " VS " + p2Final;
+        } else {
+            resultStr = "TIE GAME!\n" + finalScore + " VS " + p2Final;
+            resultColor = 0xFFFFFF00;
+        }
     }
 
     var lostText:FlxText = new FlxText(0, 0, FlxG.width, resultStr, 48);
-    lostText.setFormat(Paths.font(currentFont), 48, 0xFFFF0000, "center", 1, 0xFF000000);
+    lostText.setFormat(Paths.font(currentFont), 48, resultColor, "center", 2, 0xFF000000);
     lostText.screenCenter();
     lostText.y -= 50;
     lostText.cameras = [uiCam];
     add(lostText);
 
     var restartText:FlxText = new FlxText(0, FlxG.height - 100, FlxG.width, "[ENTER] RETRY   [BACK] MENU", 24);
-    restartText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 1, 0xFF000000);
+    restartText.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 2, 0xFF000000);
     restartText.cameras = [uiCam];
     add(restartText);
 }
@@ -519,9 +518,5 @@ function destroy() {
     if (connection != null) {
         try { connection.socket.close(); } catch(e:Dynamic) {}
         connection.destroy();
-    }
-    if (mainSocket != null) {
-        try { mainSocket.socket.close(); } catch(e:Dynamic) {}
-        mainSocket.destroy();
     }
 }
