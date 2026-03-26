@@ -1008,6 +1008,7 @@ function beginMultiplayer() {
     new FlxTimer().start(1, function(tmr) {
         count--;
         if (count <= 0) {
+            tmr.cancel();
             t.text = "GO!";
             t.color = 0xFF00FF00;
             t.scale.set(1.5, 1.5);
@@ -1024,7 +1025,7 @@ function beginMultiplayer() {
             var cols = [0xFFFFEE00, 0xFFFF9900, 0xFFFF4444];
             t.color = cols[3 - count];
         }
-    }, 4);
+    }, 0);
 }
 
 function enterPlayState() {
