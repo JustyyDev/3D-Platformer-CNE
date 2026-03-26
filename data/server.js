@@ -56,6 +56,7 @@ const server = net.createServer((socket) => {
                     console.log(`[LOBBY] ${socket.nickname} joined room ${code} (${rooms[code].players.length}/6)`);
 
                     broadcastToRoom(code, `CHAT:${socket.nickname} JOINED THE BATTLE!`);
+                    sendPlayerList(code);
 
                     if (rooms[code].gameStarted) socket.write("GAME_ALREADY_STARTED\n");
                     else socket.write("WAITING_FOR_HOST\n");
@@ -113,10 +114,17 @@ const server = net.createServer((socket) => {
             rooms[socket.roomCode].players = rooms[socket.roomCode].players.filter(p => p !== socket);
             broadcastToRoom(socket.roomCode, `CHAT:${socket.nickname} DISCONNECTED`);
             broadcastToRoom(socket.roomCode, `DEAD:${socket.nickname}`);
+            sendPlayerList(socket.roomCode);
             if (rooms[socket.roomCode].players.length === 0) delete rooms[socket.roomCode];
         }
     });
 });
+
+function sendPlayerList(roomCode) {
+    if (!rooms[roomCode]) return;
+    const nicks = rooms[roomCode].players.map(p => p.nickname).sort();
+    broadcastToRoom(roomCode, `PLAYER_LIST:${nicks.join(':')}`);
+}
 
 function broadcastToRoom(roomCode, message, excludeSocket = null) {
     if (!rooms[roomCode]) return;

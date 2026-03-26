@@ -179,7 +179,7 @@ function setupUI() {
     levelText = makeText(0, 75, FlxG.width, "LEVEL 1", 28, 0xFF00FFCC); levelText.visible = false;
     statusText = makeText(20, 16, 400, "SERVER: CHECKING...", 16, 0xFFFFFFFF); statusText.alignment = "left";
     debugLog = makeText(FlxG.width - 320, 16, 300, "", 12, 0xFF00FF00); debugLog.alignment = "right";
-    lobbyText = makeText(0, FlxG.height * 0.65, FlxG.width, "", 28, 0xFFFFEE00);
+    lobbyText = makeText(0, FlxG.height * 0.78, FlxG.width, "", 28, 0xFFFFEE00);
     typingText = makeText(0, FlxG.height * 0.8, FlxG.width, "", 42, 0xFFFFFFFF);
 
     myEmoteText = new FlxText(0, 0, 200, "", 32);
@@ -440,27 +440,21 @@ function handleServerMessage(cmd:String, args:Array<String>) {
             }
 
         case "PLAYER_LIST":
-            // Server could send full list; handle if added later
+            // Server sends authoritative full list on every join/leave
             if (args.length > 0) {
-                for (pi in 0...args.length) addLobbyPlayer(args[pi]);
-                refreshLobbyUI();
+                lobbyPlayers = [];
+                for (pi in 0...args.length) {
+                    var pn = StringTools.trim(args[pi]);
+                    if (pn.length > 0) lobbyPlayers.push(pn);
+                }
+                sortLobbyPlayers();
+                if (gameState == "LOBBY" || gameState == "WAITING_FOR_OPPONENT") refreshLobbyUI();
+                if (gameState == "PLAYING" || gameState == "DEAD") refreshPlayerSidebar();
             }
 
         case "CHAT":
             var chatMsg = args.join(":");
             log("[CHAT] " + chatMsg);
-            // Track joins and leaves in lobby
-            if (chatMsg.indexOf("JOINED THE BATTLE") != -1) {
-                var joinNick = chatMsg.split(" JOINED")[0];
-                joinNick = StringTools.trim(joinNick);
-                addLobbyPlayer(joinNick);
-                refreshLobbyUI();
-            } else if (chatMsg.indexOf("DISCONNECTED") != -1) {
-                var leaveNick = chatMsg.split(" DISCONNECTED")[0];
-                leaveNick = StringTools.trim(leaveNick);
-                lobbyPlayers.remove(leaveNick);
-                refreshLobbyUI();
-            }
     }
 }
 
@@ -532,8 +526,8 @@ function refreshLobbyUI() {
     lobbyRoomText.visible = true;
     lobbyRoomText.text = "ROOM: " + activeRoomCode + "  (" + lobbyPlayers.length + "/6)";
 
-    var startY = FlxG.height * 0.28;
-    var slotH = 55;
+    var startY = FlxG.height * 0.22;
+    var slotH = 42;
 
     for (si in 0...6) {
         var slotY = startY + (si * slotH);
