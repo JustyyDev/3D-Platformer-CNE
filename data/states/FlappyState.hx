@@ -64,7 +64,6 @@ var lobbyText:FlxText;
 var typingText:FlxText;
 var statusText:FlxText;
 var levelText:FlxText;
-var debugLog:FlxText;
 var myEmoteText:FlxText;
 var leaderboardGroup:FlxTypedGroup<FlxText>;
 var lobbySlotGroup:FlxTypedGroup<FlxText>;
@@ -174,13 +173,12 @@ function create() {
 // ══════════════════════════════════════
 
 function setupUI() {
-    titleText = makeText(0, 80, FlxG.width, "FLAPPY ROYALE", 84, 0xFFFFEE00);
-    scoreText = makeText(0, 30, FlxG.width, "0", 40, 0xFFFFFFFF); scoreText.visible = false;
-    levelText = makeText(0, 75, FlxG.width, "LEVEL 1", 28, 0xFF00FFCC); levelText.visible = false;
-    statusText = makeText(20, 16, 400, "SERVER: CHECKING...", 16, 0xFFFFFFFF); statusText.alignment = "left";
-    debugLog = makeText(FlxG.width - 320, 16, 300, "", 12, 0xFF00FF00); debugLog.alignment = "right";
-    lobbyText = makeText(0, FlxG.height * 0.78, FlxG.width, "", 28, 0xFFFFEE00);
-    typingText = makeText(0, FlxG.height * 0.8, FlxG.width, "", 42, 0xFFFFFFFF);
+    titleText = makeText(0, 60, FlxG.width, "FLAPPY ROYALE", 72, 0xFFFFEE00);
+    scoreText = makeText(0, 24, FlxG.width, "0", 48, 0xFFFFFFFF); scoreText.visible = false;
+    levelText = makeText(0, 78, FlxG.width, "LEVEL 1", 22, 0xFF00FFCC); levelText.visible = false;
+    statusText = makeText(20, FlxG.height - 30, 300, "", 14, 0xFFAABBCC); statusText.alignment = "left"; statusText.alpha = 0.6;
+    lobbyText = makeText(0, FlxG.height * 0.78, FlxG.width, "", 26, 0xFFFFEE00);
+    typingText = makeText(0, FlxG.height * 0.82, FlxG.width, "", 38, 0xFFFFFFFF);
 
     myEmoteText = new FlxText(0, 0, 200, "", 32);
     myEmoteText.setFormat(Paths.font(currentFont), 32, 0xFFFFFFFF, "center", 2, 0xFF000000);
@@ -189,7 +187,7 @@ function setupUI() {
 
     currentLeader = myNickname;
 
-    lobbyRoomText = makeText(0, FlxG.height * 0.22, FlxG.width, "", 22, 0xFF88CCFF);
+    lobbyRoomText = makeText(0, FlxG.height * 0.15, FlxG.width, "", 20, 0xFF88CCFF);
     lobbyRoomText.visible = false;
 }
 
@@ -229,9 +227,9 @@ function goToState(s:String) {
     levelText.visible = false;
 
     switch(s) {
-        case "NICKNAME": lobbyText.text = "ENTER NICKNAME";
-        case "MENU": lobbyText.text = "[1] SOLO  [2] MULTI (6P)  [3] RANKS";
-        case "ROOM_INPUT": lobbyText.text = "ENTER 4-CHAR ROOM CODE";
+        case "NICKNAME": lobbyText.text = "CHOOSE YOUR NAME";
+        case "MENU": lobbyText.text = "[1] SOLO   [2] MULTIPLAYER   [3] LEADERBOARD";
+        case "ROOM_INPUT": lobbyText.text = "TYPE A 4-LETTER ROOM CODE";
         case "LEADERBOARD": lobbyText.text = "LOADING..."; fetchLeaderboard();
     }
 }
@@ -526,16 +524,16 @@ function refreshLobbyUI() {
     lobbyRoomText.visible = true;
     lobbyRoomText.text = "ROOM: " + activeRoomCode + "  (" + lobbyPlayers.length + "/6)";
 
-    var startY = FlxG.height * 0.22;
-    var slotH = 42;
+    var startY = FlxG.height * 0.26;
+    var slotH = 46;
 
     for (si in 0...6) {
         var slotY = startY + (si * slotH);
         var hasPlayer = si < lobbyPlayers.length;
-        var nick = hasPlayer ? lobbyPlayers[si] : "- EMPTY -";
-        var col = hasPlayer ? playerColors[si % playerColors.length] : 0xFF555555;
+        var nick = hasPlayer ? lobbyPlayers[si] : "---";
+        var col = hasPlayer ? playerColors[si % playerColors.length] : 0xFF333333;
         var isMe = hasPlayer && lobbyPlayers[si] == myNickname;
-        var label = (isMe ? "> " : "  ") + (si + 1) + ".  " + nick.toUpperCase() + (isMe ? "  (YOU)" : "");
+        var label = (isMe ? ">> " : "   ") + (si + 1) + ".  " + nick.toUpperCase() + (isMe ? "  (YOU)" : "");
 
         var slot = new FlxText(0, slotY, FlxG.width, label, 30);
         slot.setFormat(Paths.font(currentFont), 30, col, "center", 2, 0xFF000000);
@@ -549,7 +547,7 @@ function refreshLobbyUI() {
         lobbySlotGroup.add(slot);
     }
 
-    lobbyText.text = "[ENTER] START GAME  |  [ESC] LEAVE";
+    lobbyText.text = "PRESS [ENTER] TO START   |   [ESC] LEAVE";
 }
 
 // ══════════════════════════════════════
@@ -654,9 +652,6 @@ function update(elapsed:Float) {
             if (op != null) crown.setPosition(op.x + 10, op.y - 15);
         }
     }
-
-    // Admin nuke
-    if (FlxG.keys.justPressed.F12 && isMultiplayer) { log("ADMIN NUKE"); netSend("NUKE_SERVER:flappyAdmin2026"); }
 
     // Pause
     if (FlxG.keys.justPressed.ESCAPE && gameState == "PLAYING") {
@@ -912,15 +907,30 @@ function killBird() {
 }
 
 function checkBattleRoyaleEnd() {
-    if (!iAmDead) return;
+    var aliveCount = 0;
+    var aliveNick = "";
+    // Check opponents
     for (i in 0...activePlayers.length) {
         if (!Reflect.field(deadMap, activePlayers[i])) {
-            lobbyText.text = "SPECTATING REMAINING PLAYERS...";
-            lobbyText.visible = true;
-            return;
+            aliveCount++;
+            aliveNick = activePlayers[i];
         }
     }
-    showGameOver();
+    // Count self
+    if (!iAmDead) { aliveCount++; aliveNick = myNickname; }
+
+    if (aliveCount <= 1 && (activePlayers.length > 0 || iAmDead)) {
+        // Last player standing wins, or everyone dead
+        if (!iAmDead) {
+            // I won!
+            currentLeader = myNickname;
+            netSend("SUBMIT_SCORE:" + score);
+        }
+        showGameOver();
+    } else if (iAmDead) {
+        lobbyText.text = "SPECTATING...  " + aliveCount + " REMAINING";
+        lobbyText.visible = true;
+    }
 }
 
 function showGameOver() {
@@ -939,8 +949,8 @@ function showGameOver() {
     add(overlay);
     FlxTween.color(overlay, 0.5, 0x00000000, 0xAA000000);
 
-    var overText = new FlxText(0, 0, FlxG.width, result, 64);
-    overText.setFormat(Paths.font(currentFont), 64, col, "center", 4, 0xFF000000);
+    var overText = new FlxText(0, 0, FlxG.width, result, 72);
+    overText.setFormat(Paths.font(currentFont), 72, col, "center", 4, 0xFF000000);
     overText.screenCenter();
     overText.y -= 60;
     overText.cameras = [uiCam];
@@ -950,8 +960,9 @@ function showGameOver() {
     FlxTween.tween(overText, {alpha: 1}, 0.4, {ease: FlxEase.quadOut});
     FlxTween.tween(overText.scale, {x: 1, y: 1}, 0.5, {ease: FlxEase.elasticOut});
 
-    var scoreInfo = new FlxText(0, 0, FlxG.width, "SCORE: " + score + "\n\n[ENTER] RETRY  [ESC] MENU", 28);
-    scoreInfo.setFormat(Paths.font(currentFont), 28, 0xFFFFFFFF, "center", 2, 0xFF000000);
+    var finalScore = isMultiplayer ? "SCORE: " + score + "  |  " + (currentLeader == myNickname ? "#1" : "ELIMINATED") : "SCORE: " + score;
+    var scoreInfo = new FlxText(0, 0, FlxG.width, finalScore + "\n\n[ENTER] RETRY   [ESC] MENU", 26);
+    scoreInfo.setFormat(Paths.font(currentFont), 26, 0xFFDDDDDD, "center", 2, 0xFF000000);
     scoreInfo.screenCenter();
     scoreInfo.y += 30;
     scoreInfo.cameras = [uiCam];
@@ -1058,11 +1069,11 @@ function fetchServerStatus() {
         log("RESP: " + d);
         if (d != null && d.indexOf("STATUS") != -1) {
             var p = d.split(":");
-            statusText.text = "ONLINE: " + p[1] + " | ROOMS: " + p[2];
-            statusText.color = 0xFF00FF00;
+            statusText.text = p[1] + " online  |  " + p[2] + " rooms";
+            statusText.color = 0xFF88CC88;
         } else {
-            statusText.text = "SERVER: OFFLINE";
-            statusText.color = 0xFFFF0000;
+            statusText.text = "server offline";
+            statusText.color = 0xFFCC6666;
         }
     });
 }
@@ -1138,8 +1149,7 @@ function renderLeaderboard(json:String) {
 // ══════════════════════════════════════
 
 function log(msg:String) {
-    debugLog.text = msg + "\n" + debugLog.text;
-    if (debugLog.text.length > 200) debugLog.text = debugLog.text.substring(0, 200);
+    // Silent logging - debug UI removed
 }
 
 function destroy() {
