@@ -68,8 +68,10 @@ var debugLog:FlxText;
 var myEmoteText:FlxText;
 var leaderboardGroup:FlxTypedGroup<FlxText>;
 var lobbySlotGroup:FlxTypedGroup<FlxText>;
+var playerSidebar:FlxTypedGroup<FlxText>;
 var lobbyPlayers:Array<String> = [];
 var lobbyRoomText:FlxText;
+var playerColors:Array<Int> = [0xFFFFEE00, 0xFF00CCFF, 0xFFFF6699, 0xFF66FF66, 0xFFFF9933, 0xFFCC66FF];
 
 // ══════════════════════════════════════
 //  GAMEPLAY TUNING
@@ -158,6 +160,7 @@ function create() {
 
     leaderboardGroup = new FlxTypedGroup(); add(leaderboardGroup);
     lobbySlotGroup = new FlxTypedGroup(); add(lobbySlotGroup);
+    playerSidebar = new FlxTypedGroup(); add(playerSidebar);
     setupUI();
 
     goToState(myNickname == "Player" ? "NICKNAME" : "MENU");
@@ -208,16 +211,16 @@ function goToState(s:String) {
     typingText.text = "";
     leaderboardGroup.clear();
     lobbySlotGroup.clear();
-    lobbyPlayers = [];
+    playerSidebar.clear();
     lobbyRoomText.visible = false;
 
-    // Disconnect when going back to menu screens
+    // Disconnect when going back to menu screens - only then clear player list
     if (s == "NICKNAME" || s == "MENU" || s == "LEADERBOARD") {
         netDisconnect();
         isMultiplayer = false;
+        lobbyPlayers = [];
+        resetMultiplayerData();
     }
-
-    resetMultiplayerData();
 
     titleText.visible = (s == "NICKNAME" || s == "MENU" || s == "ROOM_INPUT" || s == "LEADERBOARD");
     lobbyText.visible = true;
@@ -432,6 +435,7 @@ function handleServerMessage(cmd:String, args:Array<String>) {
                 Reflect.setField(deadMap, nick, true);
                 var op = getOpponent(nick);
                 if (op != null) { op.color = 0xFF444444; spawnVFX(op, 0xFF444444); }
+                refreshPlayerSidebar();
                 checkBattleRoyaleEnd();
             }
 
@@ -470,6 +474,56 @@ function addLobbyPlayer(nick:String) {
         if (lobbyPlayers[li] == nick) return;
     }
     lobbyPlayers.push(nick);
+    sortLobbyPlayers();
+}
+
+function sortLobbyPlayers() {
+    // Sort alphabetically so all clients see the same order; host (self) always first
+    lobbyPlayers.sort(function(a:String, b:String):Int {
+        if (a == myNickname) return -1;
+        if (b == myNickname) return 1;
+        if (a < b) return -1;
+        if (a > b) return 1;
+        return 0;
+    });
+}
+
+function getPlayerColor(nick:String):Int {
+    for (i in 0...lobbyPlayers.length) {
+        if (lobbyPlayers[i] == nick) return playerColors[i % playerColors.length];
+    }
+    return 0xFFFFFFFF;
+}
+
+function refreshPlayerSidebar() {
+    playerSidebar.clear();
+    if (!isMultiplayer || lobbyPlayers.length <= 1) return;
+
+    var startY = 120;
+    var slotH = 28;
+
+    // Header
+    var header = new FlxText(FlxG.width - 220, startY - 30, 210, "PLAYERS", 16);
+    header.setFormat(Paths.font(currentFont), 16, 0xFF888888, "right", 1, 0xFF000000);
+    header.cameras = [uiCam];
+    playerSidebar.add(header);
+
+    for (si in 0...lobbyPlayers.length) {
+        var nick = lobbyPlayers[si];
+        var col = getPlayerColor(nick);
+        var isDead = Reflect.field(deadMap, nick);
+        var isMe = nick == myNickname;
+        var scr = isMe ? score : (Reflect.field(scoreMap, nick) != null ? Reflect.field(scoreMap, nick) : 0);
+        var prefix = isMe ? "> " : "  ";
+        var suffix = isDead ? "  [X]" : "";
+        var label = prefix + nick + "  " + scr + suffix;
+
+        var slot = new FlxText(FlxG.width - 220, startY + (si * slotH), 210, label, 18);
+        slot.setFormat(Paths.font(currentFont), 18, isDead ? 0xFF666666 : col, "right", 1, 0xFF000000);
+        slot.alpha = isDead ? 0.5 : (isMe ? 1.0 : 0.8);
+        slot.cameras = [uiCam];
+        playerSidebar.add(slot);
+    }
 }
 
 function refreshLobbyUI() {
@@ -480,13 +534,12 @@ function refreshLobbyUI() {
 
     var startY = FlxG.height * 0.28;
     var slotH = 55;
-    var colors = [0xFFFFEE00, 0xFF00CCFF, 0xFFFF6699, 0xFF66FF66, 0xFFFF9933, 0xFFCC66FF];
 
     for (si in 0...6) {
         var slotY = startY + (si * slotH);
         var hasPlayer = si < lobbyPlayers.length;
         var nick = hasPlayer ? lobbyPlayers[si] : "- EMPTY -";
-        var col = hasPlayer ? colors[si % 6] : 0xFF555555;
+        var col = hasPlayer ? playerColors[si % playerColors.length] : 0xFF555555;
         var isMe = hasPlayer && lobbyPlayers[si] == myNickname;
         var label = (isMe ? "> " : "  ") + (si + 1) + ".  " + nick.toUpperCase() + (isMe ? "  (YOU)" : "");
 
@@ -512,10 +565,11 @@ function refreshLobbyUI() {
 function getOpponent(nick:String):FlxSprite {
     if (activePlayers.indexOf(nick) == -1) {
         activePlayers.push(nick);
+        addLobbyPlayer(nick);
         log("NEW PLAYER: " + nick);
 
         var op = new FlxSprite(300, FlxG.height / 2).makeGraphic(40, 40, 0xFFFFFFFF);
-        op.color = FlxColor.fromHSB(FlxG.random.int(0, 360), 0.7, 1);
+        op.color = getPlayerColor(nick);
         op.alpha = 0.5;
         playerGroup.add(op);
 
@@ -937,6 +991,7 @@ function startSolo() {
 function beginMultiplayer() {
     lobbySlotGroup.clear();
     lobbyRoomText.visible = false;
+    refreshPlayerSidebar();
     inCountdown = true;
     var count = 3;
     var t = new FlxText(0, 0, FlxG.width, "3", 140);
@@ -990,13 +1045,9 @@ function restartPipeTimer() {
 
 function refreshScoreUI() {
     if (isMultiplayer) {
-        var str = myNickname + ": " + score;
-        for (i in 0...activePlayers.length) {
-            var nick = activePlayers[i];
-            str += " | " + nick + ": " + Reflect.field(scoreMap, nick);
-        }
-        scoreText.text = str;
-        scoreText.size = 20;
+        scoreText.text = "SCORE: " + score;
+        scoreText.size = 32;
+        refreshPlayerSidebar();
     } else {
         scoreText.text = "SCORE: " + score;
         scoreText.size = 32;
