@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu name="Game Options" desc="These options affect the gameplay experience.">
-    <menu name="Flappy Bird" desc="Custom settings for the Flappy Bird game.">
-        <choice id="flappyFont" name="Flappy Bird Font" desc="Change the font used for the score and menus.">
+    <menu name="Flockfall" desc="Custom settings for Flockfall.">
+        <choice id="flappyFont" name="Game Font" desc="Change the font used for the score and menus.">
             <value name="Default" value="vcr.ttf" />
             <value name="Sushi" value="sushi.ttf" />
             <value name="Kiwisoda" value="kiwisoda.ttf" />

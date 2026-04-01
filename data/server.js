@@ -1,12 +1,24 @@
 const net = require('net');
+const http = require('http');
 const fs = require('fs');
 
 const PORT = 8080;
+const WEBHOOK_PORT = 8081;
 const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme';
+const KOFI_VERIFICATION_TOKEN = process.env.KOFI_TOKEN || '';
 const MAX_NICK_LEN = 12;
 const MAX_ROOM_CODE_LEN = 4;
-let rooms = {}; 
+let rooms = {};
 let leaderboard = [];
+let pendingDonations = [];
+
+const PACK_PRICES = {
+    'pack1': {min: 0.99, coins: 1000},
+    'pack2': {min: 3.99, coins: 5000},
+    'pack3': {min: 9.99, coins: 15000},
+    'pack4': {min: 24.99, coins: 50000},
+    'pack5': {min: 99.99, coins: 250000}
+};
 
 function sanitize(str, maxLen) {
     return str.replace(/[^A-Za-z0-9 _-]/g, '').substring(0, maxLen);
@@ -18,9 +30,84 @@ if (fs.existsSync('leaderboard.json')) {
 
 function saveLeaderboard() {
     leaderboard.sort((a, b) => b.score - a.score);
-    leaderboard = leaderboard.slice(0, 10);
+    leaderboard = leaderboard.slice(0, 100);
     fs.writeFileSync('leaderboard.json', JSON.stringify(leaderboard));
 }
+
+function claimDonation(nickname, packId) {
+    const pack = PACK_PRICES[packId];
+    if (!pack) return null;
+
+    for (let i = 0; i < pendingDonations.length; i++) {
+        const d = pendingDonations[i];
+        if (d.amount >= pack.min && !d.claimed) {
+            d.claimed = true;
+            pendingDonations.splice(i, 1);
+            console.log(`[PAYMENT] ${nickname} claimed ${packId} from donation of $${d.amount}`);
+            return pack.coins;
+        }
+    }
+    return null;
+}
+
+setInterval(() => {
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    pendingDonations = pendingDonations.filter(d => d.timestamp > cutoff);
+}, 60 * 1000);
+
+const webhook = http.createServer((req, res) => {
+    if (req.method === 'POST' && req.url === '/kofi') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const params = new URLSearchParams(body);
+                const raw = params.get('data');
+                if (!raw) { res.writeHead(400); res.end(); return; }
+
+                const data = JSON.parse(raw);
+
+                if (KOFI_VERIFICATION_TOKEN && data.verification_token !== KOFI_VERIFICATION_TOKEN) {
+                    console.log('[PAYMENT] Invalid verification token, rejecting webhook');
+                    res.writeHead(403); res.end(); return;
+                }
+
+                if (data.type === 'Donation' || data.type === 'Shop Order') {
+                    const amount = parseFloat(data.amount) || 0;
+                    const from = data.from_name || 'anonymous';
+                    console.log(`[PAYMENT] Ko-fi webhook: $${amount} from ${from}`);
+
+                    if (amount > 0) {
+                        pendingDonations.push({
+                            amount: amount,
+                            from: from,
+                            message: data.message || '',
+                            timestamp: Date.now(),
+                            claimed: false
+                        });
+                    }
+                }
+
+                res.writeHead(200);
+                res.end();
+            } catch (e) {
+                console.log('[PAYMENT] Webhook parse error:', e.message);
+                res.writeHead(400);
+                res.end();
+            }
+        });
+    } else if (req.method === 'GET' && req.url === '/health') {
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({status: 'ok', pending: pendingDonations.length}));
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+});
+
+webhook.listen(WEBHOOK_PORT, '0.0.0.0', () => {
+    console.log(`[WEBHOOK] Ko-fi webhook listener on port ${WEBHOOK_PORT}`);
+});
 
 const server = net.createServer((socket) => {
     console.log(`[CONN] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
@@ -44,9 +131,9 @@ const server = net.createServer((socket) => {
                     socket.roomCode = code;
 
                     if (!rooms[code]) {
-                        rooms[code] = { players: [], gameStarted: false, seed: Math.floor(Math.random() * 999999) };
+                        rooms[code] = { players: [], gameStarted: false, seed: Math.floor(Math.random() * 999999), gameId: 'flockfall' };
                     }
-                    
+
                     if (rooms[code].players.length >= 6) {
                         socket.write("ROOM_FULL\n");
                         break;
@@ -65,8 +152,30 @@ const server = net.createServer((socket) => {
                 case "START_GAME":
                     if (socket.roomCode && rooms[socket.roomCode]) {
                         rooms[socket.roomCode].gameStarted = true;
-                        broadcastToRoom(socket.roomCode, `START:${rooms[socket.roomCode].seed}:${socket.nickname}`);
-                        console.log(`[GAME] Room ${socket.roomCode} has started.`);
+                        const gameId = rooms[socket.roomCode].gameId || 'flockfall';
+                        broadcastToRoom(socket.roomCode, `START:${rooms[socket.roomCode].seed}:${socket.nickname}:${gameId}`);
+                        console.log(`[GAME] Room ${socket.roomCode} started ${gameId}`);
+                    }
+                    break;
+
+                case "GAME_SELECT":
+                    if (socket.roomCode && rooms[socket.roomCode]) {
+                        const selectedGame = sanitize(parts[1] || "flockfall", 20);
+                        rooms[socket.roomCode].gameId = selectedGame;
+                        broadcastToRoom(socket.roomCode, `GAME_SELECTED:${selectedGame}:${socket.nickname}`);
+                        console.log(`[LOBBY] ${socket.nickname} selected ${selectedGame} in ${socket.roomCode}`);
+                    }
+                    break;
+
+                case "VERIFY_DONATION":
+                    const nick = sanitize(parts[1] || "", MAX_NICK_LEN);
+                    const packId = sanitize(parts[2] || "", 10);
+                    console.log(`[PAYMENT] Verify request: ${nick} wants ${packId}`);
+                    const coins = claimDonation(nick, packId);
+                    if (coins) {
+                        socket.write("VERIFY_SUCCESS\n");
+                    } else {
+                        socket.write("VERIFY_FAIL\n");
                     }
                     break;
 
@@ -97,7 +206,7 @@ const server = net.createServer((socket) => {
                     socket.write("LEADERBOARD:" + JSON.stringify(leaderboard) + "\n");
                     break;
 
-                default: 
+                default:
                     if (socket.roomCode && rooms[socket.roomCode]) {
                         broadcastToRoom(socket.roomCode, `${msg}:${socket.nickname}`, socket);
                     }
@@ -106,7 +215,7 @@ const server = net.createServer((socket) => {
         }
     });
 
-    socket.on('error', (err) => { /* Ignore dropped connections to prevent crashes */ });
+    socket.on('error', (err) => {});
 
     socket.on('close', () => {
         if (socket.roomCode && rooms[socket.roomCode]) {
@@ -137,6 +246,6 @@ function broadcastToRoom(roomCode, message, excludeSocket = null) {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log("-----------------------------------------");
-    console.log(`BATTLE ROYALE SERVER LIVE ON PORT ${PORT}`);
+    console.log(`FLOCKFALL SERVER LIVE ON PORT ${PORT}`);
     console.log("-----------------------------------------");
 });

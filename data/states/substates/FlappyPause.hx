@@ -41,9 +41,9 @@ function update(elapsed:Float) {
     if (controls.ACCEPT) {
         var daChoice = menuItems[curSelected];
         if (daChoice == "Resume") {
-            close(); 
+            close();
         } else if (daChoice == "Restart") {
-            FlxG.switchState(new ModState("FlappyState")); 
+            FlxG.resetState();
         } else if (daChoice == "Exit") {
             FlxG.switchState(new ModState("CustomMainMenu"));
         }
@@ -54,7 +54,7 @@ function changeSelection(change:Int) {
     curSelected += change;
     if (curSelected < 0) curSelected = menuItems.length - 1;
     if (curSelected >= menuItems.length) curSelected = 0;
-    
+
     FlxG.sound.play(Paths.sound("scrollMenu"), 0.5);
 
     grpText.forEach(function(t:FlxText) {
@@ -68,7 +68,6 @@ function changeSelection(change:Int) {
 
 function destroy() {
     if (parent != null) {
-        // FIX: Pass 'this' as the parameter so the parent function is happy
         parent.call("onSubStateClose", [this]);
     }
 }
