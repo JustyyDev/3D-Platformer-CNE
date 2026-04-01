@@ -2,6 +2,7 @@ import flixel.FlxCamera;
 import flixel.text.FlxText;
 import flixel.util.FlxTimer;
 import flixel.math.FlxMath;
+import flixel.math.FlxPoint;
 import flixel.group.FlxTypedGroup;
 import flixel.tweens.FlxTween;
 import flixel.tweens.FlxEase;
@@ -23,36 +24,38 @@ var coinEarnedThisRound:Int = 0;
 var coinIconSpin:Float = 0;
 
 var allSkins:Array<Dynamic> = [
-    {id: "default", name: "DEFAULT", color: 0xFFFFEE00, price: 0, hat: "none"},
-    {id: "ice", name: "ICE BIRD", color: 0xFF00CCFF, price: 50, hat: "none"},
-    {id: "bubblegum", name: "BUBBLEGUM", color: 0xFFFF6699, price: 50, hat: "none"},
-    {id: "neon", name: "NEON", color: 0xFF66FF66, price: 75, hat: "none"},
-    {id: "sunset", name: "SUNSET", color: 0xFFFF9933, price: 75, hat: "none"},
-    {id: "lavender", name: "LAVENDER", color: 0xFFCC66FF, price: 100, hat: "none"},
-    {id: "crimson", name: "CRIMSON", color: 0xFFFF0000, price: 150, hat: "none"},
-    {id: "aqua", name: "AQUA", color: 0xFF00FFCC, price: 150, hat: "none"},
-    {id: "ghost", name: "GHOST", color: 0xFFFFFFFF, price: 200, hat: "halo"},
-    {id: "shadow", name: "SHADOW", color: 0xFF333333, price: 300, hat: "none"},
-    {id: "pink", name: "HOT PINK", color: 0xFFFF1493, price: 125, hat: "none"},
-    {id: "royal", name: "ROYAL BLUE", color: 0xFF4169E1, price: 175, hat: "crown"},
-    {id: "blaze", name: "BLAZE", color: 0xFFFF4500, price: 225, hat: "horns"},
-    {id: "ultra", name: "ULTRAVIOLET", color: 0xFF8B00FF, price: 350, hat: "none"},
-    {id: "teal", name: "TEAL WAVE", color: 0xFF00CED1, price: 400, hat: "none"},
-    {id: "golden", name: "GOLDEN KING", color: 0xFFFFD700, price: 500, hat: "bigcrown"},
-    {id: "pirate", name: "PIRATE", color: 0xFF8B4513, price: 250, hat: "pirate"},
-    {id: "ninja", name: "NINJA", color: 0xFF111111, price: 280, hat: "headband"},
-    {id: "cowboy", name: "COWBOY", color: 0xFFD2B48C, price: 320, hat: "cowboy"},
-    {id: "chef", name: "MASTER CHEF", color: 0xFFEEEEEE, price: 180, hat: "chef"},
-    {id: "wizard", name: "WIZARD", color: 0xFF4B0082, price: 450, hat: "wizard"},
-    {id: "cyborg", name: "CYBORG", color: 0xFFC0C0C0, price: 380, hat: "antenna"},
-    {id: "zombie", name: "ZOMBIE", color: 0xFF556B2F, price: 260, hat: "brain"},
-    {id: "angel", name: "PURE ANGEL", color: 0xFFFFFACD, price: 600, hat: "halo"},
-    {id: "demon", name: "ARCH DEMON", color: 0xFF8B0000, price: 600, hat: "horns"},
-    {id: "alien", name: "ALIEN", color: 0xFF32CD32, price: 420, hat: "ufo"},
-    {id: "knight", name: "PALADIN", color: 0xFFB0C4DE, price: 550, hat: "helmet"},
-    {id: "cap", name: "BALLER", color: 0xFFFF6347, price: 160, hat: "cap"},
-    {id: "frog", name: "FROG", color: 0xFF228B22, price: 210, hat: "none"},
-    {id: "choco", name: "CHOCOLATE", color: 0xFFD2691E, price: 90, hat: "none"}
+    {id: "default", name: "DEFAULT", color: 0xFFFFEE00, price: 0, hat: "none", power: "none"},
+    {id: "ice", name: "ICE BIRD", color: 0xFF00CCFF, price: 50, hat: "none", power: "none"},
+    {id: "bubblegum", name: "BUBBLEGUM", color: 0xFFFF6699, price: 50, hat: "none", power: "none"},
+    {id: "neon", name: "NEON", color: 0xFF66FF66, price: 75, hat: "none", power: "none"},
+    {id: "sunset", name: "SUNSET", color: 0xFFFF9933, price: 75, hat: "none", power: "none"},
+    {id: "lavender", name: "LAVENDER", color: 0xFFCC66FF, price: 100, hat: "none", power: "none"},
+    {id: "crimson", name: "CRIMSON", color: 0xFFFF0000, price: 150, hat: "none", power: "none"},
+    {id: "aqua", name: "AQUA", color: 0xFF00FFCC, price: 150, hat: "none", power: "none"},
+    {id: "ghost", name: "GHOST", color: 0xFFFFFFFF, price: 200, hat: "halo", power: "ghost"},
+    {id: "shadow", name: "SHADOW", color: 0xFF333333, price: 300, hat: "none", power: "none"},
+    {id: "pink", name: "HOT PINK", color: 0xFFFF1493, price: 125, hat: "none", power: "none"},
+    {id: "royal", name: "ROYAL BLUE", color: 0xFF4169E1, price: 175, hat: "crown", power: "none"},
+    {id: "blaze", name: "BLAZE", color: 0xFFFF4500, price: 225, hat: "horns", power: "speed"},
+    {id: "ultra", name: "ULTRAVIOLET", color: 0xFF8B00FF, price: 350, hat: "none", power: "none"},
+    {id: "teal", name: "TEAL WAVE", color: 0xFF00CED1, price: 400, hat: "none", power: "none"},
+    {id: "golden", name: "GOLDEN KING", color: 0xFFFFD700, price: 500, hat: "bigcrown", power: "heavy"},
+    {id: "pirate", name: "PIRATE", color: 0xFF8B4513, price: 250, hat: "pirate", power: "none"},
+    {id: "ninja", name: "NINJA", color: 0xFF111111, price: 280, hat: "headband", power: "speed"},
+    {id: "cowboy", name: "COWBOY", color: 0xFFD2B48C, price: 320, hat: "cowboy", power: "none"},
+    {id: "chef", name: "MASTER CHEF", color: 0xFFEEEEEE, price: 180, hat: "chef", power: "none"},
+    {id: "wizard", name: "WIZARD", color: 0xFF4B0082, price: 450, hat: "wizard", power: "explode"},
+    {id: "cyborg", name: "CYBORG", color: 0xFFC0C0C0, price: 380, hat: "antenna", power: "heavy"},
+    {id: "zombie", name: "ZOMBIE", color: 0xFF556B2F, price: 260, hat: "brain", power: "none"},
+    {id: "angel", name: "PURE ANGEL", color: 0xFFFFFACD, price: 600, hat: "halo", power: "ghost"},
+    {id: "demon", name: "ARCH DEMON", color: 0xFF8B0000, price: 600, hat: "horns", power: "explode"},
+    {id: "alien", name: "ALIEN", color: 0xFF32CD32, price: 420, hat: "ufo", power: "none"},
+    {id: "knight", name: "PALADIN", color: 0xFFB0C4DE, price: 550, hat: "helmet", power: "heavy"},
+    {id: "mythic", name: "MYTHIC BIRD", color: 0xFF00FA9A, price: 1000, hat: "bigcrown", power: "speed"},
+    {id: "galaxy", name: "GALAXY", color: 0xFF191970, price: 2500, hat: "antenna", power: "explode"},
+    {id: "divine", name: "DIVINE BIRD", color: 0xFFE0FFFF, price: 5000, hat: "halo", power: "ghost"},
+    {id: "omega", name: "OMEGA", color: 0xFFFF00FF, price: 10000, hat: "horns", power: "explode"},
+    {id: "creator", name: "THE CREATOR", color: 0xFFFFFFFF, price: 50000, hat: "bigcrown", power: "heavy"}
 ];
 
 var allTrails:Array<Dynamic> = [
@@ -70,9 +73,9 @@ var allTrails:Array<Dynamic> = [
     {id: "shadows", name: "SHADOWS", color: 0xFF111111, price: 250},
     {id: "money", name: "MONEY", color: 0xFF22AA22, price: 500},
     {id: "pixels", name: "PIXELS", color: 0xFFDDDDDD, price: 220},
-    {id: "ash", name: "ASH", color: 0xFF555555, price: 140},
-    {id: "slime", name: "SLIME", color: 0xFF99FF33, price: 210},
-    {id: "confetti", name: "CONFETTI", color: 0xFFFFFFFF, price: 320}
+    {id: "galaxy", name: "GALAXY TRAIL", color: 0xFF4B0082, price: 1500},
+    {id: "plasma", name: "PLASMA", color: 0xFF00FF00, price: 3000},
+    {id: "blackhole", name: "BLACK HOLE", color: 0xFF000000, price: 10000}
 ];
 
 var allBGs:Array<Dynamic> = [
@@ -88,20 +91,26 @@ var allBGs:Array<Dynamic> = [
     {id: "winter", name: "WINTER", price: 200, bg: 0xFFBBDDFF, ground: 0xFFEEEEFF, line: 0xFFFFFFFF, dirt: 0xFFBBCCEE, grass: 0xFFDDFFFF, sky: 0xFFCCDDEE, propType: "snowman"},
     {id: "cyberpunk", name: "CYBERPUNK", price: 350, bg: 0xFF0A0A1A, ground: 0xFF111122, line: 0xFF00FFFF, dirt: 0xFF0A0A11, grass: 0xFFFF00FF, sky: 0xFF442288, propType: "neonbuilding"},
     {id: "alien", name: "ALIEN", price: 300, bg: 0xFF110022, ground: 0xFF2A0033, line: 0xFF440055, dirt: 0xFF1A0022, grass: 0xFF550066, sky: 0xFFAA44AA, propType: "ufo"},
-    {id: "candyland", name: "CANDY LAND", price: 220, bg: 0xFFFFD1DC, ground: 0xFFFFB6C1, line: 0xFFFF69B4, dirt: 0xFFDB7093, grass: 0xFFFF1493, sky: 0xFFFFF0F5, propType: "lollipop"},
-    {id: "graveyard", name: "GRAVEYARD", price: 180, bg: 0xFF2F4F4F, ground: 0xFF191970, line: 0xFF483D8B, dirt: 0xFF000000, grass: 0xFF696969, sky: 0xFF708090, propType: "tombstone"},
     {id: "space", name: "DEEP SPACE", price: 450, bg: 0xFF000011, ground: 0xFF222233, line: 0xFF444466, dirt: 0xFF111122, grass: 0xFF333344, sky: 0xFF111133, propType: "planet"},
-    {id: "volcanic", name: "VOLCANIC", price: 280, bg: 0xFF4A0E00, ground: 0xFF2A0800, line: 0xFFFF4500, dirt: 0xFF1A0500, grass: 0xFF8B0000, sky: 0xFFB22222, propType: "volcano"},
-    {id: "retro", name: "RETRO 80S", price: 320, bg: 0xFF2B00FF, ground: 0xFFFF00A0, line: 0xFF00FFFF, dirt: 0xFF8A2BE2, grass: 0xFF9400D3, sky: 0xFFFF1493, propType: "grid"},
-    {id: "cloudy", name: "CLOUDY", price: 120, bg: 0xFFD3D3D3, ground: 0xFFA9A9A9, line: 0xFFC0C0C0, dirt: 0xFF808080, grass: 0xFFE0E0E0, sky: 0xFFF5F5F5, propType: "cloud"},
     {id: "matrix", name: "MATRIX", price: 500, bg: 0xFF001100, ground: 0xFF002200, line: 0xFF00FF00, dirt: 0xFF001100, grass: 0xFF008800, sky: 0xFF003300, propType: "code"},
-    {id: "steampunk", name: "STEAMPUNK", price: 380, bg: 0xFF8B4513, ground: 0xFFCD853F, line: 0xFFDAA520, dirt: 0xFF5C4033, grass: 0xFFB8860B, sky: 0xFFD2B48C, propType: "gear"},
-    {id: "underwater", name: "UNDERWATER CITY", price: 420, bg: 0xFF00008B, ground: 0xFF008080, line: 0xFF20B2AA, dirt: 0xFF006400, grass: 0xFF48D1CC, sky: 0xFF4682B4, propType: "dome"}
+    {id: "multiverse", name: "MULTIVERSE", price: 2000, bg: 0xFF1A001A, ground: 0xFF330033, line: 0xFFFF00FF, dirt: 0xFF220022, grass: 0xFF880088, sky: 0xFF440044, propType: "crystal"},
+    {id: "heaven", name: "HEAVEN", price: 5000, bg: 0xFFFFFFF0, ground: 0xFFFFFACD, line: 0xFFFFD700, dirt: 0xFFFAFAD2, grass: 0xFFFFFFE0, sky: 0xFFFFFFFF, propType: "cloud"},
+    {id: "glitchbg", name: "GLITCH DIMENSION", price: 15000, bg: 0xFF000000, ground: 0xFF00FF00, line: 0xFFFF00FF, dirt: 0xFF000000, grass: 0xFF00FFFF, sky: 0xFF111111, propType: "neonbuilding"}
+];
+
+var allPackages:Array<Dynamic> = [
+    {id: "pack1", name: "1,000 COINS", realPrice: "$0.99", coins: 1000},
+    {id: "pack2", name: "5,000 COINS", realPrice: "$3.99", coins: 5000},
+    {id: "pack3", name: "15,000 COINS", realPrice: "$9.99", coins: 15000},
+    {id: "pack4", name: "50,000 COINS", realPrice: "$24.99", coins: 50000},
+    {id: "pack5", name: "250,000 COINS", realPrice: "$99.99", coins: 250000}
 ];
 
 var shopSkins:Array<Dynamic> = [];
 var shopTrails:Array<Dynamic> = [];
 var shopBGs:Array<Dynamic> = [];
+var shopPackages:Array<Dynamic> = [];
+
 var equippedSkinId:String = "default";
 var equippedTrailId:String = "none";
 var equippedBGId:String = "day";
@@ -111,6 +120,7 @@ var shopScroll:Int = 0;
 var shopCursor:Int = 0;
 var shopUIGroup:FlxTypedGroup<FlxSprite>;
 var shopTextGroup:FlxTypedGroup<FlxText>;
+var pendingPack:Dynamic = null;
 
 var bird:FlxSprite;
 var birdWing:FlxSprite;
@@ -122,6 +132,7 @@ var birdNickTag:FlxText;
 var wingFlapTimer:Float = 0;
 var wingUp:Bool = false;
 var birdSquash:Float = 1.0;
+var powerUsed:Bool = false;
 
 var pipes:FlxTypedGroup<FlxSprite>;
 var pipeCapGroup:FlxTypedGroup<FlxSprite>;
@@ -192,7 +203,6 @@ var lobbyPlayers:Array<String> = [];
 var lobbyRoomText:FlxText;
 var waitDots:Int = 0;
 var waitDotTimer:Float = 0;
-var playerColors:Array<Int> = [0xFFFFEE00, 0xFF00CCFF, 0xFFFF6699, 0xFF66FF66, 0xFFFF9933, 0xFFCC66FF];
 
 var score:Int = 0;
 var currentLevel:Int = 1;
@@ -232,6 +242,13 @@ var lbScroll:Int = 0;
 
 var currentTrack:String = "";
 var musicTween:FlxTween;
+
+var slingshotTargets:FlxTypedGroup<FlxSprite>;
+var isDraggingSling:Bool = false;
+var dragStartX:Float = 0;
+var dragStartY:Float = 0;
+var slingLine:FlxSprite;
+var slingshotShotsLeft:Int = 0;
 
 function playMusicTrack(track:String) {
     if (currentTrack == track) return;
@@ -293,6 +310,7 @@ function create() {
     pipes = new FlxTypedGroup(); add(pipes);
     pipeCapGroup = new FlxTypedGroup(); add(pipeCapGroup);
     pipeHighlightGroup = new FlxTypedGroup(); add(pipeHighlightGroup);
+    slingshotTargets = new FlxTypedGroup(); add(slingshotTargets);
     
     powerupGlowGroup = new FlxTypedGroup(); add(powerupGlowGroup);
     powerups = new FlxTypedGroup(); add(powerups);
@@ -312,6 +330,10 @@ function create() {
     grassGroup = new FlxTypedGroup(); add(grassGroup); 
     spawnGrassTufts();
     
+    slingLine = new FlxSprite(0, 0).makeGraphic(1, 4, 0xFFFFFFFF);
+    slingLine.visible = false;
+    add(slingLine);
+
     var skinData = getSkinData(equippedSkinId);
     bird = new FlxSprite(300, FlxG.height / 2).makeGraphic(38, 32, skinData.color); 
     bird.antialiasing = true; add(bird);
@@ -454,6 +476,8 @@ function spawnBGProp(initial:Bool = false) {
         w = FlxG.random.int(20, 50); h = FlxG.random.int(100, 300); col = FlxG.random.bool(50) ? 0xFF8A2BE2 : 0xFF4B0082;
     } else if (pType == "coral") {
         w = FlxG.random.int(30, 80); h = FlxG.random.int(60, 180); col = FlxG.random.bool(50) ? 0xFFFF7F50 : 0xFFFF4500;
+    } else if (pType == "gear") {
+        w = FlxG.random.int(30, 70); h = w; col = 0xFFDAA520; yPos = FlxG.random.float(FlxG.height/2, FlxG.height - 50);
     } else {
         w = FlxG.random.int(80, 200); h = FlxG.random.int(40, 100); col = darkenColor(bgData.ground, 0.6);
     }
@@ -565,9 +589,9 @@ function loadShopData() {
     var ownedSkins:Array<String> = ["default"];
     var ownedTrails:Array<String> = ["none"];
     var ownedBGs:Array<String> = ["day"];
-    if (FlxG.save.data.flappyOwnedSkinsV3 != null) ownedSkins = FlxG.save.data.flappyOwnedSkinsV3;
-    if (FlxG.save.data.flappyOwnedTrailsV3 != null) ownedTrails = FlxG.save.data.flappyOwnedTrailsV3;
-    if (FlxG.save.data.flappyOwnedBGsV3 != null) ownedBGs = FlxG.save.data.flappyOwnedBGsV3;
+    if (FlxG.save.data.flappyOwnedSkinsV4 != null) ownedSkins = FlxG.save.data.flappyOwnedSkinsV4;
+    if (FlxG.save.data.flappyOwnedTrailsV4 != null) ownedTrails = FlxG.save.data.flappyOwnedTrailsV4;
+    if (FlxG.save.data.flappyOwnedBGsV4 != null) ownedBGs = FlxG.save.data.flappyOwnedBGsV4;
     
     if (FlxG.save.data.flappyEquippedSkinId != null) equippedSkinId = FlxG.save.data.flappyEquippedSkinId;
     if (FlxG.save.data.flappyEquippedTrailId != null) equippedTrailId = FlxG.save.data.flappyEquippedTrailId;
@@ -591,6 +615,9 @@ function loadShopData() {
         item.owned = ownedBGs.indexOf(item.id) != -1;
         shopBGs.push(item);
     }
+    
+    shopPackages = [];
+    for (i in 0...allPackages.length) shopPackages.push(Reflect.copy(allPackages[i]));
 
     var sorter = function(a:Dynamic, b:Dynamic):Int {
         if (a.price != b.price) return a.price - b.price;
@@ -609,9 +636,9 @@ function saveShopData() {
     var ownedBGs:Array<String> = [];
     for (i in 0...shopBGs.length) if (shopBGs[i].owned) ownedBGs.push(shopBGs[i].id);
     
-    FlxG.save.data.flappyOwnedSkinsV3 = ownedSkins;
-    FlxG.save.data.flappyOwnedTrailsV3 = ownedTrails;
-    FlxG.save.data.flappyOwnedBGsV3 = ownedBGs;
+    FlxG.save.data.flappyOwnedSkinsV4 = ownedSkins;
+    FlxG.save.data.flappyOwnedTrailsV4 = ownedTrails;
+    FlxG.save.data.flappyOwnedBGsV4 = ownedBGs;
     FlxG.save.data.flappyEquippedSkinId = equippedSkinId;
     FlxG.save.data.flappyEquippedTrailId = equippedTrailId;
     FlxG.save.data.flappyEquippedBGId = equippedBGId;
@@ -620,7 +647,7 @@ function saveShopData() {
 
 function setupUI() {
     titleText = makeText(0, 55, FlxG.width, "FLAPPY ROYALE", 72, 0xFFFFEE00);
-    subtitleText = makeText(0, 135, FlxG.width, "BATTLE ROYALE", 20, 0xFFFF9933); 
+    subtitleText = makeText(0, 135, FlxG.width, "MINIGAME HUB", 20, 0xFFFF9933); 
     subtitleText.alpha = 0.7;
     scoreShadow = makeText(3, 27, FlxG.width, "0", 36, 0xFF000000);
     scoreShadow.alpha = 0.4; 
@@ -669,8 +696,9 @@ function goToState(s:String) {
     shopUIGroup.clear(); 
     shopTextGroup.clear();
     lobbyRoomText.visible = false;
+    slingLine.visible = false;
 
-    if (s == "NICKNAME" || s == "MENU" || s == "LEADERBOARD" || s == "SHOP") {
+    if (s == "NICKNAME" || s == "MENU" || s == "LEADERBOARD" || s == "SHOP" || s == "SHOP_VERIFY") {
         netDisconnect();
         isMultiplayer = false; 
         lobbyPlayers = []; 
@@ -689,7 +717,7 @@ function goToState(s:String) {
     coinIconText.visible = true; 
     vignette.alpha = 0;
 
-    var showBird = (s == "PLAYING" || s == "DEAD");
+    var showBird = (s == "PLAYING" || s == "SLINGSHOT" || s == "DEAD");
     bird.visible = showBird; 
     birdWing.visible = showBird; 
     birdEye.visible = showBird; 
@@ -703,7 +731,7 @@ function goToState(s:String) {
             lobbyText.text = "CHOOSE YOUR NAME";
             playMusicTrack("mainTheme");
         case "MENU": 
-            lobbyText.text = "[1] SOLO   [2] MULTI   [3] SCORES   [4] SHOP   [ESC] EXIT";
+            lobbyText.text = "[1] FLAPPY BIRD   [2] SLINGSHOT   [3] MULTI   [4] SCORES   [5] SHOP   [ESC] EXIT";
             playMusicTrack("mainTheme");
         case "ROOM_INPUT": 
             lobbyText.text = "ENTER 4-LETTER ROOM CODE";
@@ -716,11 +744,18 @@ function goToState(s:String) {
             playMusicTrack("mainTheme");
         case "SHOP": 
             lobbyText.text = "";
-            shopCategory = 0; 
+            if (shopCategory == 3) shopCategory = 0;
             shopScroll = 0; 
             shopCursor = 0; 
             renderShop();
             playMusicTrack("shopTheme");
+        case "SHOP_VERIFY":
+            lobbyText.text = "";
+            shopUIGroup.clear(); shopTextGroup.clear();
+            var txt = new FlxText(0, FlxG.height * 0.4, FlxG.width, "WAITING FOR DONATION VERIFICATION...\n\nPLEASE DONATE ON KO-FI THEN PRESS [ENTER] TO VERIFY\n\nPRESS [ESC] TO CANCEL", 24);
+            txt.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 2, 0xFF000000);
+            txt.cameras = [uiCam];
+            shopTextGroup.add(txt);
     }
 }
 
@@ -743,12 +778,14 @@ function resetMultiplayerData() {
 
 function renderShop() {
     shopUIGroup.clear(); shopTextGroup.clear();
-    var catNames = ["BIRD SKINS", "TRAILS", "BACKGROUNDS"];
+    var catNames = ["BIRD SKINS", "TRAILS", "BACKGROUNDS", "COIN PACKS"];
     var catalog:Array<Dynamic>; 
-    var equippedId:String;
+    var equippedId:String = "";
+    
     if (shopCategory == 0) { catalog = shopSkins; equippedId = equippedSkinId; }
     else if (shopCategory == 1) { catalog = shopTrails; equippedId = equippedTrailId; }
-    else { catalog = shopBGs; equippedId = equippedBGId; }
+    else if (shopCategory == 2) { catalog = shopBGs; equippedId = equippedBGId; }
+    else { catalog = shopPackages; equippedId = ""; }
     
     if (shopCursor >= catalog.length) shopCursor = catalog.length - 1;
     if (shopCursor < 0) shopCursor = 0;
@@ -776,10 +813,10 @@ function renderShop() {
     tabBarBg.alpha = 0.6; 
     tabBarBg.cameras = [uiCam]; 
     shopUIGroup.add(tabBarBg);
-    for (ci in 0...3) {
+    for (ci in 0...4) {
         var isActive = ci == shopCategory;
         var tabCol = isActive ? 0xFFFFEE00 : 0xFF666666; 
-        var tabW = FlxG.width / 3;
+        var tabW = FlxG.width / 4;
         var tab = new FlxText(Std.int(ci * tabW), tabY + 4, Std.int(tabW), (isActive ? "> " : "  ") + catNames[ci], 17);
         tab.setFormat(Paths.font(currentFont), 17, tabCol, "center", 2, 0xFF000000); 
         tab.cameras = [uiCam]; 
@@ -800,7 +837,7 @@ function renderShop() {
         var item = catalog[idx]; 
         var slotY = startY + ((idx - shopScroll) * slotH);
         var isEquipped = item.id == equippedId;
-        var isOwned = item.owned; 
+        var isOwned = shopCategory != 3 && item.owned; 
         var isCursor = idx == shopCursor;
         var bgCol = isCursor ? 0xFF2A2A4E : (isEquipped ? 0xFF1A3A1A : 0xFF12121E);
         var slotBg = new FlxSprite(listX, Std.int(slotY)).makeGraphic(listW, Std.int(slotH - 4), bgCol);
@@ -825,16 +862,21 @@ function renderShop() {
         if (shopCategory == 0) swatchCol = item.color;
         else if (shopCategory == 1) swatchCol = item.color;
         else if (shopCategory == 2) swatchCol = item.bg;
+        else if (shopCategory == 3) swatchCol = 0xFFFFD700; 
         
         var swatch = new FlxSprite(swX + 2, Std.int(slotY + 8)).makeGraphic(30, 30, swatchCol); 
         swatch.cameras = [uiCam]; 
         shopUIGroup.add(swatch);
         var statusStr = "";
         var statusCol:Int = 0xFF888888;
-        if (isEquipped) { statusStr = "EQUIPPED"; statusCol = 0xFF00FF88; } 
-        else if (isOwned) { statusStr = "OWNED"; statusCol = 0xFF88AAFF; } 
-        else { statusStr = "$" + item.price; statusCol = 0xFFFFD700; }
-        var nameCol = isCursor ? 0xFFFFFFFF : (isEquipped ? 0xFF00FF88 : (isOwned ? 0xFFCCCCCC : 0xFF999999));
+        if (shopCategory == 3) {
+            statusStr = item.realPrice; statusCol = 0xFF00FF88;
+        } else {
+            if (isEquipped) { statusStr = "EQUIPPED"; statusCol = 0xFF00FF88; } 
+            else if (isOwned) { statusStr = "OWNED"; statusCol = 0xFF88AAFF; } 
+            else { statusStr = "$" + item.price; statusCol = 0xFFFFD700; }
+        }
+        var nameCol = isCursor ? 0xFFFFFFFF : (isEquipped ? 0xFF00FF88 : (isOwned || shopCategory == 3 ? 0xFFCCCCCC : 0xFF999999));
         var nameLabel = new FlxText(swX + 44, slotY + 4, Std.int(listW * 0.5), item.name, 22);
         nameLabel.setFormat(Paths.font(currentFont), 22, nameCol, "left", 2, 0xFF000000); 
         nameLabel.cameras = [uiCam]; 
@@ -914,16 +956,25 @@ function renderShop() {
 
     if (shopCursor < catalog.length) {
         var selItem = catalog[shopCursor]; 
-        var equId = equippedId;
         var selName = new FlxText(panelX, prevBirdY + 80, panelW, selItem.name, 22); 
         selName.setFormat(Paths.font(currentFont), 22, 0xFFFFFFFF, "center", 2, 0xFF000000); 
         selName.cameras = [uiCam];
         shopTextGroup.add(selName);
+        
         var selStatus = ""; 
         var selStatCol:Int = 0xFFFFD700;
-        if (selItem.id == equId) { selStatus = "EQUIPPED"; selStatCol = 0xFF00FF88; } 
-        else if (selItem.owned) { selStatus = "PRESS ENTER TO EQUIP"; selStatCol = 0xFF88AAFF; } 
-        else { selStatus = "PRESS ENTER TO BUY\n$" + selItem.price; selStatCol = 0xFFFFD700; }
+        
+        if (shopCategory == 3) {
+            selStatus = "PRESS ENTER TO BUY\nVIA KO-FI\n" + selItem.realPrice;
+            selStatCol = 0xFF00FF88;
+        } else {
+            var pwr = "";
+            if (shopCategory == 0 && previewSkinData.power != "none") pwr = "\nPOWER: " + previewSkinData.power.toUpperCase();
+            if (selItem.id == equippedId) { selStatus = "EQUIPPED" + pwr; selStatCol = 0xFF00FF88; } 
+            else if (selItem.owned) { selStatus = "PRESS ENTER TO EQUIP" + pwr; selStatCol = 0xFF88AAFF; } 
+            else { selStatus = "PRESS ENTER TO BUY\n$" + selItem.price + pwr; selStatCol = 0xFFFFD700; }
+        }
+        
         var selStat = new FlxText(panelX, prevBirdY + 110, panelW, selStatus, 14);
         selStat.setFormat(Paths.font(currentFont), 14, selStatCol, "center", 1, 0xFF000000); 
         selStat.cameras = [uiCam]; 
@@ -945,12 +996,13 @@ function updateShop() {
     var catalog:Array<Dynamic>; 
     if (shopCategory == 0) catalog = shopSkins;
     else if (shopCategory == 1) catalog = shopTrails; 
-    else catalog = shopBGs;
+    else if (shopCategory == 2) catalog = shopBGs;
+    else catalog = shopPackages;
     
     if (FlxG.keys.justPressed.UP && shopCursor > 0) { shopCursor--; renderShop(); }
     if (FlxG.keys.justPressed.DOWN && shopCursor < catalog.length - 1) { shopCursor++; renderShop(); }
-    if (FlxG.keys.justPressed.LEFT) { shopCategory = shopCategory - 1; if (shopCategory < 0) shopCategory = 2; shopCursor = 0; shopScroll = 0; renderShop(); }
-    if (FlxG.keys.justPressed.RIGHT) { shopCategory = (shopCategory + 1) % 3; shopCursor = 0; shopScroll = 0; renderShop(); }
+    if (FlxG.keys.justPressed.LEFT) { shopCategory = shopCategory - 1; if (shopCategory < 0) shopCategory = 3; shopCursor = 0; shopScroll = 0; renderShop(); }
+    if (FlxG.keys.justPressed.RIGHT) { shopCategory = (shopCategory + 1) % 4; shopCursor = 0; shopScroll = 0; renderShop(); }
     if (FlxG.keys.justPressed.ENTER) shopInteract(shopCursor);
     if (FlxG.keys.justPressed.ESCAPE) goToState("MENU");
 }
@@ -959,9 +1011,19 @@ function shopInteract(idx:Int) {
     var catalog:Array<Dynamic>; 
     if (shopCategory == 0) catalog = shopSkins;
     else if (shopCategory == 1) catalog = shopTrails; 
-    else catalog = shopBGs;
+    else if (shopCategory == 2) catalog = shopBGs;
+    else catalog = shopPackages;
+    
     if (idx < 0 || idx >= catalog.length) return; 
     var item = catalog[idx];
+    
+    if (shopCategory == 3) {
+        FlxG.openURL("https://ko-fi.com/justytccd");
+        pendingPack = item;
+        goToState("SHOP_VERIFY");
+        return;
+    }
+    
     if (item.owned) {
         if (shopCategory == 0) {
             equippedSkinId = item.id;
@@ -984,6 +1046,32 @@ function shopInteract(idx:Int) {
         } else { 
             FlxG.camera.flash(0x33FF0000, 0.2);
         }
+    }
+}
+
+function updateShopVerify(elapsed:Float) {
+    if (FlxG.keys.justPressed.ENTER && pendingPack != null) {
+        lobbyText.text = "CHECKING SERVER DATABASE...";
+        if (netConnected && connection != null) {
+            netSend("VERIFY_DONATION:" + myNickname + ":" + pendingPack.id);
+        } else {
+            netOneShot("VERIFY_DONATION:" + myNickname + ":" + pendingPack.id, 1.0, function(res) {
+                if (res != null && res.indexOf("SUCCESS") != -1) {
+                    addCoins(pendingPack.coins);
+                    FlxG.camera.flash(0x3300FF00, 0.4);
+                    pendingPack = null;
+                    goToState("SHOP");
+                } else {
+                    FlxG.camera.flash(0x33FF0000, 0.4);
+                    lobbyText.text = "VERIFICATION FAILED!";
+                    new FlxTimer().start(2, function(t) { goToState("SHOP"); pendingPack = null; });
+                }
+            });
+        }
+    }
+    if (FlxG.keys.justPressed.ESCAPE) {
+        pendingPack = null;
+        goToState("SHOP");
     }
 }
 
@@ -1144,21 +1232,45 @@ function handleServerMessage(cmd:String, args:Array<String>) {
             }
         case "PLAYER_LIST": 
             if (args.length > 0) { 
+                var oldList = lobbyPlayers.join(",");
                 lobbyPlayers = [];
                 for (pi in 0...args.length) { 
                     var pn = StringTools.trim(args[pi]); 
                     if (pn.length > 0) lobbyPlayers.push(pn); 
                 } 
                 sortLobbyPlayers();
-                if (lobbyPlayers[0] == myNickname) isHost = true; else isHost = false;
-                if (gameState == "LOBBY" || gameState == "WAITING_FOR_OPPONENT") refreshLobbyUI(); 
-                if (gameState == "PLAYING" || gameState == "DEAD") refreshPlayerSidebar();
+                if (lobbyPlayers.length > 0 && lobbyPlayers[0] == myNickname) isHost = true; else isHost = false;
+                
+                var changed = (oldList != lobbyPlayers.join(","));
+                
+                if (gameState == "WAITING_FOR_OPPONENT") {
+                    gameState = "LOBBY";
+                    refreshLobbyUI();
+                } else if (gameState == "LOBBY" && changed) {
+                    refreshLobbyUI(); 
+                }
+                if ((gameState == "PLAYING" || gameState == "DEAD" || gameState == "SLINGSHOT") && changed) {
+                    refreshPlayerSidebar();
+                }
             }
         case "SKIN":
             if (args.length >= 2) {
                 var nick = args[0];
                 var skinId = args[1];
                 Reflect.setField(playerSkinIdMap, nick, skinId);
+            }
+        case "VERIFY_SUCCESS":
+            if (gameState == "SHOP_VERIFY" && pendingPack != null) {
+                addCoins(pendingPack.coins);
+                FlxG.camera.flash(0x3300FF00, 0.4);
+                pendingPack = null;
+                goToState("SHOP");
+            }
+        case "VERIFY_FAIL":
+            if (gameState == "SHOP_VERIFY") {
+                FlxG.camera.flash(0x33FF0000, 0.4);
+                lobbyText.text = "VERIFICATION FAILED!";
+                new FlxTimer().start(2, function(t) { goToState("SHOP"); pendingPack = null; });
             }
     }
 }
@@ -1265,7 +1377,12 @@ function refreshLobbyUI() {
     
     var modeStr = gameModes[gameMode];
     var ctrlStr = isHost ? "   |   <- " + modeStr + " ->" : "   |   " + modeStr;
-    lobbyText.text = "[ENTER] START   |   [ESC] LEAVE" + ctrlStr;
+    
+    if (lobbyPlayers.length < 2) {
+        lobbyText.text = "[ESC] LEAVE   |   WAITING FOR PLAYERS..." + ctrlStr;
+    } else {
+        lobbyText.text = (isHost ? "[ENTER] START   |   " : "") + "[ESC] LEAVE" + ctrlStr;
+    }
     lobbyText.y = FlxG.height * 0.82;
 }
 
@@ -1366,7 +1483,7 @@ function update(elapsed:Float) {
     if (cloudSpawnTimer > 3.0) { cloudSpawnTimer = 0; spawnCloud(false); }
     cloudGroup.forEachAlive(function(c:FlxSprite) { if (c.x + c.width < -50) c.kill(); });
     
-    if (gameState == "PLAYING" && !iAmDead) { 
+    if ((gameState == "PLAYING" || gameState == "SLINGSHOT") && !iAmDead) { 
         wingFlapTimer += elapsed; 
         if (wingFlapTimer > 0.12) { wingFlapTimer = 0; wingUp = !wingUp; } 
     }
@@ -1426,7 +1543,7 @@ function update(elapsed:Float) {
     bgPropSpawnTimer += elapsed;
     if (bgPropSpawnTimer > 1.5) {
         bgPropSpawnTimer = FlxG.random.float(0, 0.5);
-        if (gameState == "PLAYING" && !inCountdown) spawnBGProp();
+        if ((gameState == "PLAYING" || gameState == "SLINGSHOT") && !inCountdown) spawnBGProp();
     }
     bgPropGroup.forEachAlive(function(prop) {
         prop.velocity.x = pipeSpeed * 0.3;
@@ -1442,7 +1559,7 @@ function update(elapsed:Float) {
         for (di in 0...waitDots) dots += "."; lobbyText.text = "WAITING" + dots;
     }
     if (gameState == "PLAYING") vignette.alpha = FlxMath.lerp(vignette.alpha, 0.15, elapsed * 2);
-    if (FlxG.keys.justPressed.ESCAPE && gameState == "PLAYING") { openSubState(new ModSubState("FlappyPause")); return; }
+    if (FlxG.keys.justPressed.ESCAPE && (gameState == "PLAYING" || gameState == "SLINGSHOT")) { openSubState(new ModSubState("FlappyPause")); return; }
     
     switch(gameState) { 
         case "NICKNAME": updateNickname(elapsed);
@@ -1451,9 +1568,11 @@ function update(elapsed:Float) {
         case "WAITING_FOR_OPPONENT": updateWaiting(); 
         case "LOBBY": updateLobby(); 
         case "PLAYING": updatePlaying(elapsed); 
+        case "SLINGSHOT": updateSlingshot(elapsed);
         case "DEAD": updateDead();
         case "LEADERBOARD": updateLeaderboard(); 
         case "SHOP": updateShop(); 
+        case "SHOP_VERIFY": updateShopVerify(elapsed);
     }
 }
 
@@ -1469,9 +1588,10 @@ function updateNickname(elapsed:Float) {
 
 function updateMenu() { 
     if (FlxG.keys.justPressed.ONE) { gameMode = 0; startSolo(); }
-    if (FlxG.keys.justPressed.TWO) goToState("ROOM_INPUT"); 
-    if (FlxG.keys.justPressed.THREE) goToState("LEADERBOARD");
-    if (FlxG.keys.justPressed.FOUR) goToState("SHOP"); 
+    if (FlxG.keys.justPressed.TWO) { startSlingshot(); }
+    if (FlxG.keys.justPressed.THREE) goToState("ROOM_INPUT"); 
+    if (FlxG.keys.justPressed.FOUR) goToState("LEADERBOARD");
+    if (FlxG.keys.justPressed.FIVE) goToState("SHOP"); 
     if (FlxG.keys.justPressed.ESCAPE) {
         playMusicTrack("");
         FlxG.switchState(new MainMenuState());
@@ -1510,8 +1630,14 @@ function updateLobby() {
             netSend("CHAT:SET_MODE:" + gameMode);
             refreshLobbyUI();
         }
+        if (FlxG.keys.justPressed.ENTER) {
+            if (lobbyPlayers.length >= 2) {
+                netSend("START_GAME");
+            } else {
+                FlxG.camera.shake(0.01, 0.2);
+            }
+        }
     }
-    if (FlxG.keys.justPressed.ENTER) netSend("START_GAME"); 
     if (FlxG.keys.justPressed.ESCAPE) goToState("MENU"); 
 }
 
@@ -1559,6 +1685,13 @@ function updatePlaying(elapsed:Float) {
             spawnVFX(bird, getSkinData(equippedSkinId).color); 
             if (isMultiplayer) netSend("JUMP"); 
         }
+        
+        var skData = getSkinData(equippedSkinId);
+        if (FlxG.keys.justPressed.SHIFT && !powerUsed && skData.power != "none") {
+            powerUsed = true;
+            activatePower(skData.power);
+        }
+        
         if (FlxG.keys.justPressed.Q) sendEmote(":)");
         if (FlxG.keys.justPressed.W) sendEmote("GG"); 
         if (FlxG.keys.justPressed.E) sendEmote("RIP");
@@ -1628,6 +1761,121 @@ function updatePlaying(elapsed:Float) {
     powerupLabelGroup.forEachAlive(function(l:FlxText) { l.velocity.x = pipeSpeed; if (l.x < -120) l.kill(); });
 }
 
+function updateSlingshot(elapsed:Float) {
+    if (inCountdown) return;
+    if (equippedTrailId != "none" && !iAmDead && bird.velocity.x > 0) { 
+        trailTimer += elapsed; 
+        if (trailTimer >= 0.05) { trailTimer = 0; spawnTrailParticle(bird); } 
+    }
+
+    if (!isDraggingSling && bird.velocity.x == 0 && !iAmDead) {
+        if (FlxG.mouse.justPressed) {
+            var dx = FlxG.mouse.x - (bird.x + 19);
+            var dy = FlxG.mouse.y - (bird.y + 16);
+            if (Math.sqrt(dx*dx + dy*dy) < 50) {
+                isDraggingSling = true;
+                dragStartX = bird.x + 19;
+                dragStartY = bird.y + 16;
+                slingLine.visible = true;
+            }
+        }
+    }
+
+    if (isDraggingSling) {
+        var mx = FlxG.mouse.x;
+        var my = FlxG.mouse.y;
+        var dist = Math.sqrt((mx-dragStartX)*(mx-dragStartX) + (my-dragStartY)*(my-dragStartY));
+        var maxDrag = 150;
+        if (dist > maxDrag) {
+            mx = dragStartX + (mx-dragStartX) * (maxDrag/dist);
+            my = dragStartY + (my-dragStartY) * (maxDrag/dist);
+        }
+        bird.x = mx - 19;
+        bird.y = my - 16;
+        
+        var dx = dragStartX - mx;
+        var dy = dragStartY - my;
+        bird.angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+        slingLine.x = mx; slingLine.y = my;
+        var sldx = dragStartX - mx; var sldy = dragStartY - my;
+        slingLine.scale.set(Math.sqrt(sldx*sldx + sldy*sldy), 4);
+        slingLine.angle = Math.atan2(sldy, sldx) * 180 / Math.PI;
+        slingLine.origin.set(0, 2);
+
+        if (FlxG.mouse.justReleased) {
+            isDraggingSling = false;
+            slingLine.visible = false;
+            bird.velocity.x = dx * 8;
+            bird.velocity.y = dy * 8;
+            bird.acceleration.y = gravity * 0.5;
+            slingshotShotsLeft--;
+            FlxG.camera.flash(0x22FFFFFF, 0.2);
+            powerUsed = false;
+        }
+    } else if (bird.velocity.x > 0) {
+        var skData = getSkinData(equippedSkinId);
+        if (FlxG.mouse.justPressed && !powerUsed && skData.power != "none") {
+            powerUsed = true;
+            activatePower(skData.power);
+        }
+
+        bird.angle = Math.atan2(bird.velocity.y, bird.velocity.x) * 180 / Math.PI;
+
+        FlxG.overlap(bird, slingshotTargets, function(b, t) {
+            t.kill();
+            spawnDeathBurst(t);
+            score += 10;
+            addCoins(2);
+            scoreBounce = 1.35;
+            spawnScorePopup();
+            FlxG.camera.shake(0.01, 0.1);
+            refreshScoreUI();
+        });
+
+        if (bird.x > FlxG.width + 100 || bird.y > FlxG.height || bird.y < -300) {
+            if (slingshotTargets.countLiving() == 0) {
+                generateSlingshotLevel();
+            } else if (slingshotShotsLeft <= 0) {
+                showGameOver();
+            } else {
+                resetBirdSlingshot();
+            }
+        }
+    }
+}
+
+function activatePower(pow:String) {
+    FlxG.camera.flash(0x55FFFFFF, 0.3);
+    spawnVFX(bird, 0xFFFFFFFF);
+    if (pow == "speed") {
+        bird.velocity.x *= 1.8;
+        bird.velocity.y *= 1.8;
+    } else if (pow == "heavy") {
+        bird.acceleration.y = gravity * 1.5;
+        bird.velocity.y += 200;
+        birdSquash = 1.5;
+    } else if (pow == "explode") {
+        if (gameState == "SLINGSHOT") {
+            slingshotTargets.forEachAlive(function(t:FlxSprite) {
+                var dx = t.x - bird.x; var dy = t.y - bird.y;
+                if (Math.sqrt(dx*dx + dy*dy) < 180) {
+                    t.kill(); spawnDeathBurst(t); score+=10; addCoins(2);
+                }
+            });
+        } else {
+            pipes.forEachAlive(function(p:FlxSprite) {
+                var dx = p.x - bird.x; var dy = p.y - bird.y;
+                if (Math.sqrt(dx*dx + dy*dy) < 250) p.kill();
+            });
+        }
+    } else if (pow == "ghost") {
+        isGhost = true;
+        bird.alpha = 0.5;
+        new FlxTimer().start(2, function(t) { isGhost = false; bird.alpha = 1; });
+    }
+}
+
 function spawnScorePopup() { 
     var pop = new FlxText(Std.int(bird.x + 20), Std.int(bird.y - 30), 100, "+1", 22);
     pop.setFormat(Paths.font(currentFont), 22, 0xFFFFEE00, "center", 2, 0xFF000000); 
@@ -1658,9 +1906,9 @@ function spawnTrailParticle(obj:FlxSprite) {
     if (equippedTrailId == "shadows") { col = 0xFF111111; size = FlxG.random.int(8, 20); dur = 0.5; }
     if (equippedTrailId == "money") { col = 0xFF22AA22; size = FlxG.random.int(6, 12); vy = FlxG.random.float(-10, 10); shrinks = false; }
     if (equippedTrailId == "pixels") { col = 0xFFDDDDDD; size = FlxG.random.int(8, 14); vx = -50; vy = 0; }
-    if (equippedTrailId == "ash") { col = 0xFF555555; size = FlxG.random.int(4, 12); vy = FlxG.random.float(-10, -40); dur = 0.4; }
-    if (equippedTrailId == "slime") { col = 0xFF99FF33; size = FlxG.random.int(8, 16); vy = FlxG.random.float(10, 40); }
-    if (equippedTrailId == "confetti") { col = FlxG.random.color(0xFF000000, 0xFFFFFFFF); size = FlxG.random.int(4, 10); vy = FlxG.random.float(-20, 20); dur = 0.6; }
+    if (equippedTrailId == "galaxy") { col = FlxG.random.bool(50) ? 0xFF8A2BE2 : 0xFF9400D3; size = FlxG.random.int(10, 24); vx = FlxG.random.float(-50, -100); }
+    if (equippedTrailId == "plasma") { col = 0xFF39FF14; size = FlxG.random.int(4, 8); vy = FlxG.random.float(-5, 5); }
+    if (equippedTrailId == "blackhole") { col = 0xFF000000; size = FlxG.random.int(15, 30); dur = 0.8; }
 
     p.makeGraphic(size, size, col); 
     p.reset(obj.x + 19 - size / 2 + FlxG.random.float(-5, 5), obj.y + 16 - size / 2 + FlxG.random.float(-5, 5));
@@ -1926,6 +2174,7 @@ function resetGameplay() {
     trailTimer = 0;
     hasShield = false; 
     isGhost = false; 
+    powerUsed = false;
 
     pipeSpeed = -300; 
     pipeGap = 230;
@@ -1958,6 +2207,64 @@ function startSolo() {
     playMusicTrack("racingTillDawn");
     enterPlayState(); 
     restartPipeTimer(); 
+}
+
+function startSlingshot() {
+    iAmDead = false;
+    isMultiplayer = false;
+    resetGameplay();
+    playMusicTrack("racingTillDawn");
+    gameState = "SLINGSHOT";
+    titleText.visible = false; 
+    subtitleText.visible = false; 
+    lobbyText.visible = false;
+    typingText.visible = false; 
+    typingBg.visible = false;
+    scoreText.visible = true; 
+    scoreShadow.visible = true; 
+    levelText.visible = true;
+    bird.visible = true;
+    birdWing.visible = true; 
+    birdEye.visible = true; 
+    birdBeak.visible = true;
+    birdHat1.visible = true;
+    birdHat2.visible = true;
+    birdNickTag.visible = true;
+    
+    var sDat = getSkinData(equippedSkinId);
+    bird.color = sDat.color;
+    birdHat1.color = 0xFFFFFFFF; birdHat2.color = 0xFFFFFFFF;
+    birdWing.color = darkenColor(sDat.color, 0.7);
+    birdNickTag.text = myNickname;
+    
+    levelText.text = "SLINGSHOT MODE";
+    generateSlingshotLevel();
+}
+
+function resetBirdSlingshot() {
+    bird.acceleration.y = 0;
+    bird.velocity.set(0,0);
+    bird.x = 150;
+    bird.y = FlxG.height - 150;
+    bird.angle = 0;
+    isDraggingSling = false;
+    powerUsed = false;
+    if (slingshotShotsLeft <= 0) showGameOver();
+}
+
+function generateSlingshotLevel() {
+    slingshotTargets.clear();
+    slingshotShotsLeft = 3;
+    currentLevel++;
+    var numTargets = 3 + currentLevel;
+    var startX = FlxG.width * 0.6;
+    for(i in 0...numTargets) {
+        var tx = startX + FlxG.random.float(0, FlxG.width * 0.3);
+        var ty = FlxG.height - 30 - FlxG.random.float(40, FlxG.height * 0.6);
+        var t = new FlxSprite(tx, ty).makeGraphic(40, 40, FlxG.random.color(0xFF555555, 0xFFFFFFFF));
+        slingshotTargets.add(t);
+    }
+    resetBirdSlingshot();
 }
 
 function beginMultiplayer() {
