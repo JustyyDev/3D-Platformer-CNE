@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu name="Game Options" desc="These options affect the gameplay experience.">
-    <menu name="Flappy Bird" desc="Custom settings for the Flappy Bird minigame.">
-        <choice id="flappyFont" name="Minigame Font" desc="Change the font used for the score and menus.">
-            <value name="Super Mario Font" value="vcr.ttf" />
-            <value name="Sushi Font" value="sushi.ttf" />
+    <menu name="Flappy Bird" desc="Custom settings for the Flappy Bird game.">
+        <choice id="flappyFont" name="Flappy Bird Font" desc="Change the font used for the score and menus.">
+            <value name="Default" value="vcr.ttf" />
+            <value name="Sushi" value="sushi.ttf" />
+            <value name="Kiwisoda" value="kiwisoda.ttf" />
+            <value name="Pixel" value="pixel.ttf" />
+            <value name="Mario" value="marioworld.ttf" />
         </choice>
     </menu>
 </menu>
