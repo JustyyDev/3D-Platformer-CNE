@@ -9,13 +9,11 @@ import flixel.util.FlxColor;
 import flixel.addons.display.FlxBackdrop;
 import funkin.backend.scripting.ModState;
 import funkin.backend.scripting.ModSubState;
-import funkin.backend.shaders.CustomShader;
 import funkin.menus.MainMenuState;
 import sys.net.Host;
 import funkin.backend.system.net.Socket;
 
 var gameState:String = "MENU";
-var perspShader:CustomShader;
 var uiCam:FlxCamera;
 var currentFont:String = "vcr.ttf";
 var myNickname:String = "Player";
@@ -94,6 +92,7 @@ var arenaTop:Float = 80;
 var arenaBottom:Float = 0;
 var arenaFloor:FlxSprite;
 var arenaBorder:FlxSprite;
+var serverState:Dynamic = null;
 
 function create() {
     if (FlxG.save.data.flappyNickname != null) myNickname = FlxG.save.data.flappyNickname;
@@ -104,11 +103,6 @@ function create() {
     arenaBottom = FlxG.height - 50;
 
     FlxG.camera.bgColor = 0xFF0E0E1E;
-    perspShader = new CustomShader("perspective");
-    perspShader.skew = 0.12;
-    perspShader.depth = 0.5;
-    perspShader.tilt = 0.2;
-    FlxG.camera.addShader(perspShader);
     uiCam = new FlxCamera(); uiCam.bgColor = 0x00000000;
     FlxG.cameras.add(uiCam, false);
 
@@ -275,7 +269,6 @@ function collectCoin(c:FlxSprite) {
         flappyCoins += earned;
         scoreText.text = localScore + " FLOCKERS";
         coinText.text = "" + flappyCoins; coinBounce = 1.2;
-        if (isMultiplayer) netSend("SCORE:" + localScore);
     }
 
     spawnCollectVFX(c.x, c.y, c.color);
@@ -293,6 +286,15 @@ function spawnCollectVFX(x:Float, y:Float, col:Int) {
 }
 
 function showResults() {
+    incrementStat("totalGamesPlayed", 1);
+    incrementStat("treasureGrabGamesPlayed", 1);
+    unlockAchievement("gen_welcome");
+    if (localScore > getStat("treasureGrabHighScore")) saveStat("treasureGrabHighScore", localScore);
+    if (localScore >= 100) unlockAchievement("tg_hunter");
+    if (localScore >= 500) unlockAchievement("tg_rush");
+    incrementStat("treasureGrabTotalCoins", localScore);
+    if (getStat("treasureGrabTotalCoins") >= 10000) unlockAchievement("tg_hoarder");
+    if (getStat("treasureGrabTotalCoins") >= 100000) unlockAchievement("tg_millionaire");
     FlxG.save.data.flappyCoins = flappyCoins; FlxG.save.flush();
     player.visible = false; playerEye.visible = false; playerBeak.visible = false;
     coinGroup.clear(); coinGlowGroup.clear(); coinLabelGroup.clear();
@@ -395,7 +397,7 @@ function updateWaiting(elapsed:Float) {
 }
 
 function updateLobby() {
-    if (isHost && FlxG.keys.justPressed.ENTER && lobbyPlayers.length >= 2) netSend("START_GAME");
+    if (isHost && FlxG.keys.justPressed.ENTER && lobbyPlayers.length >= 2) netSend("START_GAME:treasuregrab:0");
     if (FlxG.keys.justPressed.ESCAPE) goToState("MENU");
 }
 
@@ -415,7 +417,30 @@ function updatePlaying(elapsed:Float) {
     player.x = FlxMath.bound(player.x, arenaLeft, arenaRight - 34);
     player.y = FlxMath.bound(player.y, arenaTop, arenaBottom - 28);
 
-    if (isMultiplayer) netSend("POS:" + Std.int(player.x) + ":" + Std.int(player.y));
+    if (isMultiplayer) {
+        var l = FlxG.keys.pressed.LEFT || FlxG.keys.pressed.A;
+        var r = FlxG.keys.pressed.RIGHT || FlxG.keys.pressed.D;
+        var u = FlxG.keys.pressed.UP || FlxG.keys.pressed.W;
+        var d = FlxG.keys.pressed.DOWN || FlxG.keys.pressed.S;
+        netSend("INPUT:LEFT:" + (l ? "1" : "0"));
+        netSend("INPUT:RIGHT:" + (r ? "1" : "0"));
+        netSend("INPUT:UP:" + (u ? "1" : "0"));
+        netSend("INPUT:DOWN:" + (d ? "1" : "0"));
+        if (serverState != null) {
+            var myS:Dynamic = Reflect.field(serverState.p, myNickname);
+            if (myS != null) {
+                player.x = FlxMath.lerp(player.x, myS.x, 0.3);
+                player.y = FlxMath.lerp(player.y, myS.y, 0.3);
+                if (myS.score > localScore) {
+                    var diff = myS.score - localScore;
+                    localScore = myS.score;
+                    flappyCoins += diff;
+                    scoreText.text = localScore + " FLOCKERS";
+                    coinText.text = "" + flappyCoins; coinBounce = 1.2;
+                }
+            }
+        }
+    }
 
     coinSpawnTimer += elapsed;
     var spawnInterval = coinSpawnRate;
@@ -530,12 +555,26 @@ function handleServerMessage(cmd:String, args:Array<String>) {
         case "WAITING_FOR_HOST": gameState = "LOBBY"; addLobbyPlayer(myNickname); refreshLobbyUI();
         case "ROOM_FULL": lobbyText.text = "ROOM FULL!"; new FlxTimer().start(2, function(t) { goToState("MENU"); });
         case "START": countdownActive = false; goToState("PLAYING");
-        case "POS":
-            if (args.length >= 3) {
-                var nick = args[2]; Reflect.setField(targetXMap, nick, Std.parseFloat(args[0])); Reflect.setField(targetYMap, nick, Std.parseFloat(args[1])); getOpponent(nick);
+        case "GS":
+            if (args.length >= 1) {
+                try {
+                    var gs = haxe.Json.parse(args.join(":"));
+                    serverState = gs;
+                    if (gs.timer != null) { roundTimer = gs.timer; }
+                    var fields = Reflect.fields(gs.p);
+                    for (fi in 0...fields.length) {
+                        var nick = fields[fi];
+                        var ps:Dynamic = Reflect.field(gs.p, nick);
+                        if (nick != myNickname) {
+                            Reflect.setField(targetXMap, nick, ps.x);
+                            Reflect.setField(targetYMap, nick, ps.y);
+                            Reflect.setField(playerScoreMap, nick, ps.score);
+                            getOpponent(nick);
+                        }
+                    }
+                    if (gs.ph == "gameover" && gameState == "PLAYING") { roundTimer = 0; gameState = "GAMEOVER"; showResults(); }
+                } catch(e:Dynamic) {}
             }
-        case "SCORE": if (args.length >= 2) Reflect.setField(playerScoreMap, args[1], Std.parseInt(args[0]));
-        case "DEAD": if (args.length >= 1) { var op = Reflect.field(playerMap, args[0]); if (op != null) op.color = 0xFF444444; }
         case "PLAYER_LIST":
             if (args.length > 0) {
                 lobbyPlayers = [];
@@ -587,4 +626,41 @@ function refreshLobbyUI() {
     else lobbyText.text = (isHost ? "[ENTER] START   |   " : "") + "[ESC] LEAVE";
 }
 
-function destroy() { netDisconnect(); if (perspShader != null) FlxG.camera.removeShader(perspShader); }
+function getStat(key:String):Int {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) return 0;
+    var val:Dynamic = Reflect.field(stats, key);
+    if (val == null) return 0;
+    return val;
+}
+function saveStat(key:String, value:Int) {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) { stats = {}; FlxG.save.data.flappyStats = stats; }
+    Reflect.setField(stats, key, value);
+    FlxG.save.flush();
+}
+function incrementStat(key:String, amount:Int) { saveStat(key, getStat(key) + amount); }
+function hasAchievement(id:String):Bool {
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs == null) return false;
+    for (a in achs) if (a == id) return true;
+    return false;
+}
+function unlockAchievement(id:String) {
+    if (hasAchievement(id)) return;
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs == null) { achs = []; FlxG.save.data.flappyAchievements = achs; }
+    achs.push(id);
+    FlxG.save.flush();
+    showAchievementPopup(id);
+}
+function showAchievementPopup(id:String) {
+    var popup = new FlxText(0, 80, FlxG.width, "ACHIEVEMENT UNLOCKED!\n" + id.toUpperCase(), 20);
+    popup.setFormat(Paths.font("vcr.ttf"), 20, 0xFFFFD700, "center", 2, 0xFF000000);
+    popup.cameras = [uiCam]; popup.alpha = 0; add(popup);
+    FlxTween.tween(popup, {alpha: 1}, 0.3, {onComplete: function(t) {
+        FlxTween.tween(popup, {alpha: 0}, 0.5, {startDelay: 2.0, onComplete: function(t2) { popup.destroy(); }});
+    }});
+}
+
+function destroy() { netDisconnect(); }

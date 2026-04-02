@@ -8,12 +8,10 @@ import flixel.tweens.FlxEase;
 import flixel.util.FlxColor;
 import funkin.backend.scripting.ModState;
 import funkin.backend.scripting.ModSubState;
-import funkin.backend.shaders.CustomShader;
 import sys.net.Host;
 import funkin.backend.system.net.Socket;
 
 var gameState:String = "MENU";
-var perspShader:CustomShader;
 var uiCam:FlxCamera;
 var currentFont:String = "vcr.ttf";
 var myNickname:String = "Player";
@@ -85,6 +83,7 @@ var countdownActive:Bool = false;
 var netSendAccum:Float = 0;
 var powerupSpawnTimer:Float = 0;
 var pulseTimer:Float = 0;
+var serverState:Dynamic = null;
 
 var arenaLeft:Float = 40;
 var arenaRight:Float = 0;
@@ -100,11 +99,6 @@ function create() {
     arenaBottom = FlxG.height - 50;
 
     FlxG.camera.bgColor = 0xFF06061A;
-    perspShader = new CustomShader("perspective");
-    perspShader.skew = 0.12;
-    perspShader.depth = 0.5;
-    perspShader.tilt = 0.2;
-    FlxG.camera.addShader(perspShader);
     uiCam = new FlxCamera(); uiCam.bgColor = 0x00000000;
     FlxG.cameras.add(uiCam, false);
 
@@ -323,7 +317,7 @@ function killPlayer() {
     flappyCoins += reward; FlxG.save.data.flappyCoins = flappyCoins; FlxG.save.flush();
     coinText.text = "" + flappyCoins; coinBounce = 1.3;
 
-    if (isMultiplayer) { netSend("DEAD"); checkMultiEnd(); }
+    if (isMultiplayer) checkMultiEnd();
     else showGameOver(reward);
 }
 
@@ -341,6 +335,15 @@ function checkMultiEnd() {
 
 function showGameOver(reward:Int) {
     gameState = "GAMEOVER";
+    incrementStat("totalGamesPlayed", 1);
+    incrementStat("totalDeaths", 1);
+    incrementStat("dodgeDerbyGamesPlayed", 1);
+    if (getStat("dodgeDerbyGamesPlayed") >= 1) unlockAchievement("gen_welcome");
+    if (wave > getStat("dodgeDerbyHighWave")) saveStat("dodgeDerbyHighWave", wave);
+    if (wave >= 10) unlockAchievement("dd_dodge");
+    if (wave >= 25) unlockAchievement("dd_matrix");
+    if (wave >= 50) unlockAchievement("dd_invincible");
+    if (wave >= 100) unlockAchievement("dd_legend");
     if (FlxG.sound.music != null) FlxTween.tween(FlxG.sound.music, {volume: 0}, 0.5);
 
     var overlay = new FlxSprite().makeGraphic(FlxG.width, FlxG.height, 0x00000000);
@@ -416,7 +419,7 @@ function updateWaiting(elapsed:Float) {
 }
 
 function updateLobby() {
-    if (isHost && FlxG.keys.justPressed.ENTER && lobbyPlayers.length >= 2) netSend("START_GAME");
+    if (isHost && FlxG.keys.justPressed.ENTER && lobbyPlayers.length >= 2) netSend("START_GAME:dodgederby:0");
     if (FlxG.keys.justPressed.ESCAPE) goToState("MENU");
 }
 
@@ -435,7 +438,28 @@ function updatePlaying(elapsed:Float) {
         player.x = FlxMath.bound(player.x, arenaLeft, arenaRight - 28);
         player.y = FlxMath.bound(player.y, arenaTop, arenaBottom - 24);
 
-        if (isMultiplayer) { netSendAccum += elapsed; if (netSendAccum >= 0.05) { netSendAccum = 0; netSend("POS:" + Std.int(player.x) + ":" + Std.int(player.y)); } }
+        if (isMultiplayer) {
+            netSendAccum += elapsed;
+            if (netSendAccum >= 0.05) {
+                netSendAccum = 0;
+                var l = FlxG.keys.pressed.LEFT || FlxG.keys.pressed.A;
+                var r = FlxG.keys.pressed.RIGHT || FlxG.keys.pressed.D;
+                var u = FlxG.keys.pressed.UP || FlxG.keys.pressed.W;
+                var d = FlxG.keys.pressed.DOWN || FlxG.keys.pressed.S;
+                netSend("INPUT:LEFT:" + (l ? "1" : "0"));
+                netSend("INPUT:RIGHT:" + (r ? "1" : "0"));
+                netSend("INPUT:UP:" + (u ? "1" : "0"));
+                netSend("INPUT:DOWN:" + (d ? "1" : "0"));
+            }
+            if (serverState != null) {
+                var myS:Dynamic = Reflect.field(serverState.p, myNickname);
+                if (myS != null) {
+                    player.x = FlxMath.lerp(player.x, myS.x, 0.3);
+                    player.y = FlxMath.lerp(player.y, myS.y, 0.3);
+                    if (!myS.alive && !iAmDead) killPlayer();
+                }
+            }
+        }
     }
 
     waveTimer += elapsed;
@@ -509,8 +533,31 @@ function handleServerMessage(cmd:String, args:Array<String>) {
         case "WAITING_FOR_HOST": gameState = "LOBBY"; addLobbyPlayer(myNickname); refreshLobbyUI();
         case "ROOM_FULL": lobbyText.text = "ROOM FULL!"; new FlxTimer().start(2, function(t) { goToState("MENU"); });
         case "START": goToState("PLAYING");
-        case "POS": if (args.length >= 3) { var nick = args[2]; Reflect.setField(targetXMap, nick, Std.parseFloat(args[0])); Reflect.setField(targetYMap, nick, Std.parseFloat(args[1])); getOpponent(nick); }
-        case "DEAD": if (args.length >= 1) { Reflect.setField(deadMap, args[0], true); var op = Reflect.field(playerMap, args[0]); if (op != null) op.color = 0xFF444444; checkMultiEnd(); }
+        case "GS":
+            if (args.length >= 1) {
+                try {
+                    var gs = haxe.Json.parse(args.join(":"));
+                    serverState = gs;
+                    if (gs.wave != null) { wave = gs.wave; waveText.text = "WAVE " + wave; }
+                    var fields = Reflect.fields(gs.p);
+                    for (fi in 0...fields.length) {
+                        var nick = fields[fi];
+                        var ps:Dynamic = Reflect.field(gs.p, nick);
+                        if (nick != myNickname) {
+                            Reflect.setField(targetXMap, nick, ps.x);
+                            Reflect.setField(targetYMap, nick, ps.y);
+                            getOpponent(nick);
+                            if (!ps.alive && !Reflect.field(deadMap, nick)) {
+                                Reflect.setField(deadMap, nick, true);
+                                var op = Reflect.field(playerMap, nick);
+                                if (op != null) op.color = 0xFF444444;
+                                checkMultiEnd();
+                            }
+                        }
+                    }
+                    if (gs.ph == "gameover" && gameState == "PLAYING") checkMultiEnd();
+                } catch(e:Dynamic) {}
+            }
         case "PLAYER_LIST":
             if (args.length > 0) { lobbyPlayers = [];
                 for (pi in 0...args.length) { var pn = StringTools.trim(args[pi]); if (pn.length > 0) lobbyPlayers.push(pn); }
@@ -556,4 +603,41 @@ function refreshLobbyUI() {
     else lobbyText.text = (isHost ? "[ENTER] START   |   " : "") + "[ESC] LEAVE";
 }
 
-function destroy() { netDisconnect(); if (perspShader != null) FlxG.camera.removeShader(perspShader); }
+function getStat(key:String):Int {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) return 0;
+    var val:Dynamic = Reflect.field(stats, key);
+    if (val == null) return 0;
+    return val;
+}
+function saveStat(key:String, value:Int) {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) { stats = {}; FlxG.save.data.flappyStats = stats; }
+    Reflect.setField(stats, key, value);
+    FlxG.save.flush();
+}
+function incrementStat(key:String, amount:Int) { saveStat(key, getStat(key) + amount); }
+function hasAchievement(id:String):Bool {
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs == null) return false;
+    for (a in achs) if (a == id) return true;
+    return false;
+}
+function unlockAchievement(id:String) {
+    if (hasAchievement(id)) return;
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs == null) { achs = []; FlxG.save.data.flappyAchievements = achs; }
+    achs.push(id);
+    FlxG.save.flush();
+    showAchievementPopup(id);
+}
+function showAchievementPopup(id:String) {
+    var popup = new FlxText(0, 80, FlxG.width, "ACHIEVEMENT UNLOCKED!\n" + id.toUpperCase(), 20);
+    popup.setFormat(Paths.font("vcr.ttf"), 20, 0xFFFFD700, "center", 2, 0xFF000000);
+    popup.cameras = [uiCam]; popup.alpha = 0; add(popup);
+    FlxTween.tween(popup, {alpha: 1}, 0.3, {onComplete: function(t) {
+        FlxTween.tween(popup, {alpha: 0}, 0.5, {startDelay: 2.0, onComplete: function(t2) { popup.destroy(); }});
+    }});
+}
+
+function destroy() { netDisconnect(); }

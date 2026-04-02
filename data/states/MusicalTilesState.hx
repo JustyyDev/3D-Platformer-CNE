@@ -8,12 +8,10 @@ import flixel.tweens.FlxEase;
 import flixel.util.FlxColor;
 import funkin.backend.scripting.ModState;
 import funkin.backend.scripting.ModSubState;
-import funkin.backend.shaders.CustomShader;
 import sys.net.Host;
 import funkin.backend.system.net.Socket;
 
 var gameState:String = "MENU";
-var perspShader:CustomShader;
 var uiCam:FlxCamera;
 var currentFont:String = "vcr.ttf";
 var myNickname:String = "Player";
@@ -90,6 +88,7 @@ var revealDuration:Float = 2.5;
 var roundPhase:String = "IDLE";
 var roundActive:Bool = false;
 var countdownActive:Bool = false;
+var serverState:Dynamic = null;
 
 var roundText:FlxText;
 var phaseText:FlxText;
@@ -112,11 +111,6 @@ function create() {
     gridOffY = arenaTop;
 
     FlxG.camera.bgColor = 0xFF0A0614;
-    perspShader = new CustomShader("perspective");
-    perspShader.skew = 0.18;
-    perspShader.depth = 0.6;
-    perspShader.tilt = 0.3;
-    FlxG.camera.addShader(perspShader);
     uiCam = new FlxCamera(); uiCam.bgColor = 0x00000000;
     FlxG.cameras.add(uiCam, false);
 
@@ -313,7 +307,6 @@ function checkTiles() {
         spawnDeathVFX(player.x, player.y);
         player.alpha = 0.3;
         statusText.text = "ELIMINATED ON ROUND " + roundNum; statusText.color = 0xFFFF4444;
-        if (isMultiplayer) netSend("DEAD:" + roundNum);
     }
 
     if (isMultiplayer) {
@@ -384,6 +377,18 @@ function spawnDeathVFX(x:Float, y:Float) {
 }
 
 function showResults() {
+    incrementStat("totalGamesPlayed", 1);
+    incrementStat("musicalTilesGamesPlayed", 1);
+    unlockAchievement("gen_welcome");
+    if (roundNum > getStat("musicalTilesHighRound")) saveStat("musicalTilesHighRound", roundNum);
+    if (roundNum >= 5) unlockAchievement("mt_feet");
+    if (roundNum >= 15) unlockAchievement("mt_dance");
+    if (roundNum >= 30) unlockAchievement("mt_eternal");
+    if (roundNum >= maxRounds && !iAmDead) {
+        incrementStat("totalWins", 1);
+        incrementStat("musicalTilesWins", 1);
+        if (getStat("musicalTilesWins") >= 50) unlockAchievement("mt_master");
+    }
     var earned = 10 + roundNum * 3;
     if (roundNum >= maxRounds && !iAmDead) earned = 50;
     flappyCoins += earned;
@@ -492,7 +497,7 @@ function updateWaiting(elapsed:Float) {
 }
 
 function updateLobby() {
-    if (isHost && FlxG.keys.justPressed.ENTER && lobbyPlayers.length >= 2) netSend("START_GAME");
+    if (isHost && FlxG.keys.justPressed.ENTER && lobbyPlayers.length >= 2) netSend("START_GAME:musicaltiles:0");
     if (FlxG.keys.justPressed.ESCAPE) goToState("MENU");
 }
 
@@ -542,7 +547,31 @@ function updatePlaying(elapsed:Float) {
     player.x = FlxMath.bound(player.x, minX, maxX);
     player.y = FlxMath.bound(player.y, minY, maxY);
 
-    if (isMultiplayer) netSend("POS:" + Std.int(player.x) + ":" + Std.int(player.y));
+    if (isMultiplayer) {
+        var l = FlxG.keys.pressed.LEFT || FlxG.keys.pressed.A;
+        var r = FlxG.keys.pressed.RIGHT || FlxG.keys.pressed.D;
+        var u = FlxG.keys.pressed.UP || FlxG.keys.pressed.W;
+        var d = FlxG.keys.pressed.DOWN || FlxG.keys.pressed.S;
+        netSend("INPUT:LEFT:" + (l ? "1" : "0"));
+        netSend("INPUT:RIGHT:" + (r ? "1" : "0"));
+        netSend("INPUT:UP:" + (u ? "1" : "0"));
+        netSend("INPUT:DOWN:" + (d ? "1" : "0"));
+        if (serverState != null) {
+            var myS:Dynamic = Reflect.field(serverState.p, myNickname);
+            if (myS != null) {
+                player.x = FlxMath.lerp(player.x, myS.x, 0.3);
+                player.y = FlxMath.lerp(player.y, myS.y, 0.3);
+                if (!myS.alive && !iAmDead) {
+                    iAmDead = true;
+                    FlxG.camera.flash(0x44FF0000, 0.4);
+                    FlxG.camera.shake(0.02, 0.3);
+                    spawnDeathVFX(player.x, player.y);
+                    player.alpha = 0.3;
+                    statusText.text = "ELIMINATED ON ROUND " + roundNum; statusText.color = 0xFFFF4444;
+                }
+            }
+        }
+    }
 }
 
 function handleTyping(max:Int, elapsed:Float) {
@@ -608,15 +637,35 @@ function handleServerMessage(cmd:String, args:Array<String>) {
         case "WAITING_FOR_HOST": gameState = "LOBBY"; addLobbyPlayer(myNickname); refreshLobbyUI();
         case "ROOM_FULL": lobbyText.text = "ROOM FULL!"; new FlxTimer().start(2, function(t) { goToState("MENU"); });
         case "START": countdownActive = false; goToState("PLAYING");
-        case "POS":
-            if (args.length >= 3) {
-                var nick = args[2]; Reflect.setField(targetXMap, nick, Std.parseFloat(args[0])); Reflect.setField(targetYMap, nick, Std.parseFloat(args[1])); getOpponent(nick);
-            }
-        case "DEAD":
+        case "GS":
             if (args.length >= 1) {
-                var nick = args[0];
-                var op = Reflect.field(playerMap, nick);
-                if (op != null) { op.alpha = 0.3; Reflect.setField(deadMap, nick, true); }
+                try {
+                    var gs = haxe.Json.parse(args.join(":"));
+                    serverState = gs;
+                    if (gs.round != null) roundNum = gs.round;
+                    if (gs.safe != null) {
+                        var sArr:Array<Dynamic> = gs.safe;
+                        for (si in 0...sArr.length) {
+                            if (si < safeTiles.length) safeTiles[si] = sArr[si];
+                        }
+                    }
+                    var fields = Reflect.fields(gs.p);
+                    for (fi in 0...fields.length) {
+                        var nick = fields[fi];
+                        var ps:Dynamic = Reflect.field(gs.p, nick);
+                        if (nick != myNickname) {
+                            Reflect.setField(targetXMap, nick, ps.x);
+                            Reflect.setField(targetYMap, nick, ps.y);
+                            getOpponent(nick);
+                            if (!ps.alive && Reflect.field(deadMap, nick) == null) {
+                                Reflect.setField(deadMap, nick, true);
+                                var op = Reflect.field(playerMap, nick);
+                                if (op != null) op.alpha = 0.3;
+                            }
+                        }
+                    }
+                    if (gs.ph == "gameover" && gameState == "PLAYING") { gameState = "GAMEOVER"; showResults(); }
+                } catch(e:Dynamic) {}
             }
         case "PLAYER_LIST":
             if (args.length > 0) {
@@ -669,4 +718,41 @@ function refreshLobbyUI() {
     else lobbyText.text = (isHost ? "[ENTER] START   |   " : "") + "[ESC] LEAVE";
 }
 
-function destroy() { netDisconnect(); if (perspShader != null) FlxG.camera.removeShader(perspShader); }
+function getStat(key:String):Int {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) return 0;
+    var val:Dynamic = Reflect.field(stats, key);
+    if (val == null) return 0;
+    return val;
+}
+function saveStat(key:String, value:Int) {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) { stats = {}; FlxG.save.data.flappyStats = stats; }
+    Reflect.setField(stats, key, value);
+    FlxG.save.flush();
+}
+function incrementStat(key:String, amount:Int) { saveStat(key, getStat(key) + amount); }
+function hasAchievement(id:String):Bool {
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs == null) return false;
+    for (a in achs) if (a == id) return true;
+    return false;
+}
+function unlockAchievement(id:String) {
+    if (hasAchievement(id)) return;
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs == null) { achs = []; FlxG.save.data.flappyAchievements = achs; }
+    achs.push(id);
+    FlxG.save.flush();
+    showAchievementPopup(id);
+}
+function showAchievementPopup(id:String) {
+    var popup = new FlxText(0, 80, FlxG.width, "ACHIEVEMENT UNLOCKED!\n" + id.toUpperCase(), 20);
+    popup.setFormat(Paths.font("vcr.ttf"), 20, 0xFFFFD700, "center", 2, 0xFF000000);
+    popup.cameras = [uiCam]; popup.alpha = 0; add(popup);
+    FlxTween.tween(popup, {alpha: 1}, 0.3, {onComplete: function(t) {
+        FlxTween.tween(popup, {alpha: 0}, 0.5, {startDelay: 2.0, onComplete: function(t2) { popup.destroy(); }});
+    }});
+}
+
+function destroy() { netDisconnect(); }

@@ -103,21 +103,74 @@ var allPackages:Array<Dynamic> = [
     {id: "pack5", name: "250,000 FLOCKERS", realPrice: "$99.99", coins: 250000}
 ];
 
+var allTitles:Array<Dynamic> = [
+    {id: "rookie", name: "ROOKIE", price: 0, achRequired: ""},
+    {id: "pro", name: "PRO", price: 500, achRequired: ""},
+    {id: "elite", name: "ELITE", price: 2000, achRequired: ""},
+    {id: "master", name: "MASTER", price: 5000, achRequired: ""},
+    {id: "legend", name: "LEGEND", price: 15000, achRequired: ""},
+    {id: "champion", name: "CHAMPION", price: 25000, achRequired: ""},
+    {id: "mythic", name: "MYTHIC", price: 50000, achRequired: ""},
+    {id: "god", name: "GOD", price: 100000, achRequired: ""},
+    {id: "the_creator", name: "THE CREATOR", price: 500000, achRequired: ""},
+    {id: "perfectionist", name: "PERFECTIONIST", price: 0, achRequired: "gen_completionist"},
+    {id: "veteran", name: "VETERAN", price: 0, achRequired: "ff_barrage"},
+    {id: "whale", name: "WHALE", price: 0, achRequired: "gen_spender"},
+    {id: "hacker", name: "HACKER", price: 0, achRequired: "sec_allgames"},
+    {id: "fan", name: "FAN", price: 0, achRequired: ""},
+    {id: "founder", name: "FOUNDER", price: 0, achRequired: ""}
+];
+
+var allEmotes:Array<Dynamic> = [
+    {id: "wave", name: "WAVE", price: 0, color: 0xFFFFEE00},
+    {id: "dance", name: "DANCE", price: 200, color: 0xFFFF44AA},
+    {id: "taunt", name: "TAUNT", price: 300, color: 0xFFFF4444},
+    {id: "gg", name: "GG", price: 350, color: 0xFF00FF88},
+    {id: "rip", name: "RIP", price: 250, color: 0xFF888888},
+    {id: "cry", name: "CRY", price: 400, color: 0xFF4488FF},
+    {id: "celebrate", name: "CELEBRATE", price: 500, color: 0xFFFFD700},
+    {id: "flex", name: "FLEX", price: 600, color: 0xFFFF8800},
+    {id: "mindblown", name: "MIND BLOWN", price: 800, color: 0xFFCC44FF},
+    {id: "crown_emote", name: "CROWN", price: 1500, color: 0xFFFFD700}
+];
+
+var allDLC:Array<Dynamic> = [
+    {id: "dlc_starter", name: "PARTY STARTER PACK", desc: "3 EXCLUSIVE SKINS + 2 TRAILS", flockerPrice: 25000, kofiPrice: "$4.99",
+     contents: {skins: ["dlc_flame", "dlc_frost", "dlc_electric"], trails: ["dlc_fire_ring", "dlc_ice_ring"]}},
+    {id: "dlc_neon", name: "NEON DREAMS PACK", desc: "4 NEON SKINS + TRAIL + BG", flockerPrice: 40000, kofiPrice: "$7.99",
+     contents: {skins: ["dlc_neon_pink", "dlc_neon_blue", "dlc_neon_green", "dlc_neon_purple"], trails: ["dlc_neon_trail"], bgs: ["dlc_neon_city"]}},
+    {id: "dlc_ultimate", name: "ULTIMATE BUNDLE", desc: "5 SKINS + 3 TRAILS + 2 BGS + TITLE", flockerPrice: 100000, kofiPrice: "$14.99",
+     contents: {skins: ["dlc_diamond", "dlc_ruby", "dlc_emerald", "dlc_sapphire", "dlc_obsidian"], trails: ["dlc_diamond_trail", "dlc_gem_trail", "dlc_dark_trail"], bgs: ["dlc_crystal_cave", "dlc_gem_world"], titles: ["ultimate_player"]}},
+    {id: "dlc_founder", name: "FOUNDER'S PACK", desc: "ALL DLC + FOUNDER TITLE + 2X COINS", flockerPrice: 500000, kofiPrice: "$29.99",
+     contents: {allDLC: true, titles: ["founder"], coinMultiplier: 2}}
+];
+
 var shopSkins:Array<Dynamic> = [];
 var shopTrails:Array<Dynamic> = [];
 var shopBGs:Array<Dynamic> = [];
 var shopPackages:Array<Dynamic> = [];
+var shopTitles:Array<Dynamic> = [];
+var shopEmotes:Array<Dynamic> = [];
+var shopDLCList:Array<Dynamic> = [];
 
 var equippedSkinId:String = "default";
 var equippedTrailId:String = "none";
 var equippedBGId:String = "day";
+var equippedTitleId:String = "";
 
 var shopCategory:Int = 0;
+var totalCategories:Int = 8;
 var shopScroll:Int = 0;
 var shopCursor:Int = 0;
 var shopUIGroup:FlxTypedGroup<FlxSprite>;
 var shopTextGroup:FlxTypedGroup<FlxText>;
 var pendingPack:Dynamic = null;
+
+var codeInput:String = "";
+var codeTypingCursor:Float = 0;
+var codeTypingBlink:Bool = true;
+var codeResultText:String = "";
+var codeResultTimer:Float = 0;
 var verifyState:String = "SHOP";
 var statusText:FlxText;
 var coinText:FlxText;
@@ -153,17 +206,25 @@ function makeText(x:Float, y:Float, w:Float, text:String, size:Int, color:Int):F
 
 function loadShopData() {
     var ownedSkins:Array<String> = ["default"]; var ownedTrails:Array<String> = ["none"]; var ownedBGs:Array<String> = ["day"];
+    var ownedTitles:Array<String> = ["rookie"]; var ownedEmotes:Array<String> = ["wave"]; var ownedDLC:Array<String> = [];
     if (FlxG.save.data.flappyOwnedSkinsV5 != null) ownedSkins = FlxG.save.data.flappyOwnedSkinsV5;
     if (FlxG.save.data.flappyOwnedTrailsV5 != null) ownedTrails = FlxG.save.data.flappyOwnedTrailsV5;
     if (FlxG.save.data.flappyOwnedBGsV5 != null) ownedBGs = FlxG.save.data.flappyOwnedBGsV5;
+    if (FlxG.save.data.flappyOwnedTitles != null) ownedTitles = FlxG.save.data.flappyOwnedTitles;
+    if (FlxG.save.data.flappyOwnedEmotes != null) ownedEmotes = FlxG.save.data.flappyOwnedEmotes;
+    if (FlxG.save.data.flappyOwnedDLC != null) ownedDLC = FlxG.save.data.flappyOwnedDLC;
     if (FlxG.save.data.flappyEquippedSkinId != null) equippedSkinId = FlxG.save.data.flappyEquippedSkinId;
     if (FlxG.save.data.flappyEquippedTrailId != null) equippedTrailId = FlxG.save.data.flappyEquippedTrailId;
     if (FlxG.save.data.flappyEquippedBGId != null) equippedBGId = FlxG.save.data.flappyEquippedBGId;
+    if (FlxG.save.data.flappyEquippedTitle != null) equippedTitleId = FlxG.save.data.flappyEquippedTitle;
 
     shopSkins = []; for (s in allSkins) { var item = Reflect.copy(s); item.owned = ownedSkins.indexOf(item.id) != -1; shopSkins.push(item); }
     shopTrails = []; for (t in allTrails) { var item = Reflect.copy(t); item.owned = ownedTrails.indexOf(item.id) != -1; shopTrails.push(item); }
     shopBGs = []; for (b in allBGs) { var item = Reflect.copy(b); item.owned = ownedBGs.indexOf(item.id) != -1; shopBGs.push(item); }
     shopPackages = []; for (p in allPackages) shopPackages.push(Reflect.copy(p));
+    shopTitles = []; for (ti in allTitles) { var item = Reflect.copy(ti); item.owned = ownedTitles.indexOf(item.id) != -1; shopTitles.push(item); }
+    shopEmotes = []; for (e in allEmotes) { var item = Reflect.copy(e); item.owned = ownedEmotes.indexOf(item.id) != -1; shopEmotes.push(item); }
+    shopDLCList = []; for (d in allDLC) { var item = Reflect.copy(d); item.owned = ownedDLC.indexOf(item.id) != -1; shopDLCList.push(item); }
 
     var sorter = function(a, b) { if (a.price != b.price) return a.price - b.price; return (a.name < b.name) ? -1 : 1; };
     shopSkins.sort(sorter); shopTrails.sort(sorter); shopBGs.sort(sorter);
@@ -173,8 +234,13 @@ function saveShopData() {
     var os = []; for (s in shopSkins) if (s.owned) os.push(s.id);
     var ot = []; for (t in shopTrails) if (t.owned) ot.push(t.id);
     var ob = []; for (b in shopBGs) if (b.owned) ob.push(b.id);
+    var oTi = []; for (ti in shopTitles) if (ti.owned) oTi.push(ti.id);
+    var oEm = []; for (e in shopEmotes) if (e.owned) oEm.push(e.id);
+    var oDlc = []; for (d in shopDLCList) if (d.owned) oDlc.push(d.id);
     FlxG.save.data.flappyOwnedSkinsV5 = os; FlxG.save.data.flappyOwnedTrailsV5 = ot; FlxG.save.data.flappyOwnedBGsV5 = ob;
+    FlxG.save.data.flappyOwnedTitles = oTi; FlxG.save.data.flappyOwnedEmotes = oEm; FlxG.save.data.flappyOwnedDLC = oDlc;
     FlxG.save.data.flappyEquippedSkinId = equippedSkinId; FlxG.save.data.flappyEquippedTrailId = equippedTrailId; FlxG.save.data.flappyEquippedBGId = equippedBGId;
+    FlxG.save.data.flappyEquippedTitle = equippedTitleId;
     FlxG.save.flush();
 }
 
@@ -188,8 +254,8 @@ function darkenColor(col:Int, factor:Float):Int {
     return 0xFF000000 | (r << 16) | (g << 8) | b;
 }
 
-function addCoins(amount:Int) { flappyCoins += amount; FlxG.save.data.flappyCoins = flappyCoins; FlxG.save.flush(); coinText.text = "" + flappyCoins; coinBounce = 1.3; }
-function spendCoins(amount:Int):Bool { if (flappyCoins < amount) return false; flappyCoins -= amount; FlxG.save.data.flappyCoins = flappyCoins; FlxG.save.flush(); coinText.text = "" + flappyCoins; coinBounce = 1.3; return true; }
+function addCoins(amount:Int) { flappyCoins += amount; FlxG.save.data.flappyCoins = flappyCoins; FlxG.save.flush(); coinText.text = "" + flappyCoins; coinBounce = 1.3; incrementStat("totalFlockerEarned", amount); }
+function spendCoins(amount:Int):Bool { if (flappyCoins < amount) return false; flappyCoins -= amount; FlxG.save.data.flappyCoins = flappyCoins; FlxG.save.flush(); coinText.text = "" + flappyCoins; coinBounce = 1.3; incrementStat("totalFlockerSpent", amount); if (getStat("totalFlockerSpent") >= 100000) { var achs:Array<String> = FlxG.save.data.flappyAchievements; if (achs == null) { achs = []; FlxG.save.data.flappyAchievements = achs; } var has = false; for (a in achs) if (a == "gen_spender") has = true; if (!has) { achs.push("gen_spender"); FlxG.save.flush(); } } return true; }
 
 function applyHat(hatId:String, target1:FlxSprite, target2:FlxSprite, bx:Float, by:Float) {
     target1.visible = false; target2.visible = false;
@@ -214,13 +280,17 @@ function applyHat(hatId:String, target1:FlxSprite, target2:FlxSprite, bx:Float, 
 
 function renderShop() {
     shopUIGroup.clear(); shopTextGroup.clear();
-    var catNames = ["BIRD SKINS", "TRAILS", "BACKGROUNDS", "FLOCKER PACKS"];
-    var catalog:Array<Dynamic>; var equippedId:String = "";
+    var catNames = ["SKINS", "TRAILS", "BGS", "PACKS", "TITLES", "EMOTES", "DLC", "CODES"];
+    var catalog:Array<Dynamic> = []; var equippedId:String = "";
 
     if (shopCategory == 0) { catalog = shopSkins; equippedId = equippedSkinId; }
     else if (shopCategory == 1) { catalog = shopTrails; equippedId = equippedTrailId; }
     else if (shopCategory == 2) { catalog = shopBGs; equippedId = equippedBGId; }
-    else { catalog = shopPackages; equippedId = ""; }
+    else if (shopCategory == 3) { catalog = shopPackages; equippedId = ""; }
+    else if (shopCategory == 4) { catalog = shopTitles; equippedId = equippedTitleId; }
+    else if (shopCategory == 5) { catalog = shopEmotes; equippedId = ""; }
+    else if (shopCategory == 6) { catalog = shopDLCList; equippedId = ""; }
+    else { catalog = []; equippedId = ""; }
 
     if (shopCursor >= catalog.length) shopCursor = catalog.length - 1;
     if (shopCursor < 0) shopCursor = 0;
@@ -236,11 +306,11 @@ function renderShop() {
 
     var tabY = Std.int(FlxG.height * 0.14);
     var tabBarBg = new FlxSprite(0, tabY).makeGraphic(FlxG.width, 32, 0xFF111122); tabBarBg.alpha = 0.6; tabBarBg.cameras = [uiCam]; shopUIGroup.add(tabBarBg);
-    for (ci in 0...4) {
-        var isActive = ci == shopCategory; var tabCol = isActive ? 0xFFFFEE00 : 0xFF666666; var tabW = FlxG.width / 4;
-        var tab = new FlxText(Std.int(ci * tabW), tabY + 4, Std.int(tabW), (isActive ? "> " : "  ") + catNames[ci], 17);
-        tab.setFormat(Paths.font(currentFont), 17, tabCol, "center", 2, 0xFF000000); tab.cameras = [uiCam]; shopTextGroup.add(tab);
-        if (isActive) { var ul = new FlxSprite(Std.int(ci * tabW + tabW * 0.15), tabY + 28).makeGraphic(Std.int(tabW * 0.7), 3, 0xFFFFEE00); ul.cameras = [uiCam]; shopUIGroup.add(ul); }
+    for (ci in 0...totalCategories) {
+        var isActive = ci == shopCategory; var tabCol = isActive ? 0xFFFFEE00 : 0xFF666666; var tabW = FlxG.width / totalCategories;
+        var tab = new FlxText(Std.int(ci * tabW), tabY + 4, Std.int(tabW), catNames[ci], 13);
+        tab.setFormat(Paths.font(currentFont), 13, tabCol, "center", 1, 0xFF000000); tab.cameras = [uiCam]; shopTextGroup.add(tab);
+        if (isActive) { var ul = new FlxSprite(Std.int(ci * tabW + tabW * 0.1), tabY + 28).makeGraphic(Std.int(tabW * 0.8), 3, 0xFFFFEE00); ul.cameras = [uiCam]; shopUIGroup.add(ul); }
     }
 
     var startY = Std.int(FlxG.height * 0.22); var slotH = 48; var listW = Std.int(FlxG.width * 0.62); var listX = Std.int(FlxG.width * 0.04);
@@ -258,11 +328,27 @@ function renderShop() {
         var swBorder = new FlxSprite(swX, Std.int(slotY + 6)).makeGraphic(34, 34, isCursor ? 0xFFFFEE00 : 0xFF444444); swBorder.cameras = [uiCam]; shopUIGroup.add(swBorder);
 
         var swatchCol = 0xFFFFFFFF;
-        if (shopCategory == 0) swatchCol = item.color; else if (shopCategory == 1) swatchCol = item.color; else if (shopCategory == 2) swatchCol = item.bg; else if (shopCategory == 3) swatchCol = 0xFFFFD700;
+        if (shopCategory == 0) swatchCol = item.color;
+        else if (shopCategory == 1) swatchCol = item.color;
+        else if (shopCategory == 2) swatchCol = item.bg;
+        else if (shopCategory == 3) swatchCol = 0xFFFFD700;
+        else if (shopCategory == 4) swatchCol = 0xFF88CCFF;
+        else if (shopCategory == 5) swatchCol = item.color;
+        else if (shopCategory == 6) swatchCol = 0xFFFF8844;
 
         var swatch = new FlxSprite(swX + 2, Std.int(slotY + 8)).makeGraphic(30, 30, swatchCol); swatch.cameras = [uiCam]; shopUIGroup.add(swatch);
         var statusStr = ""; var statusCol:Int = 0xFF888888;
         if (shopCategory == 3) { statusStr = item.realPrice; statusCol = 0xFF00FF88; }
+        else if (shopCategory == 4) {
+            if (isEquipped) { statusStr = "EQUIPPED"; statusCol = 0xFF00FF88; }
+            else if (isOwned) { statusStr = "OWNED"; statusCol = 0xFF88AAFF; }
+            else if (item.achRequired != null && item.achRequired != "") { statusStr = "ACHIEVEMENT LOCKED"; statusCol = 0xFFFF4444; }
+            else { statusStr = item.price + "F"; statusCol = 0xFFFFD700; }
+        }
+        else if (shopCategory == 6) {
+            if (isOwned) { statusStr = "OWNED"; statusCol = 0xFF00FF88; }
+            else { statusStr = item.flockerPrice + "F / " + item.kofiPrice; statusCol = 0xFFFFD700; }
+        }
         else {
             if (isEquipped) { statusStr = "EQUIPPED"; statusCol = 0xFF00FF88; } else if (isOwned) { statusStr = "OWNED"; statusCol = 0xFF88AAFF; } else { statusStr = item.price + "F"; statusCol = 0xFFFFD700; }
         }
@@ -302,13 +388,42 @@ function renderShop() {
     var hat1 = new FlxSprite(0,0); var hat2 = new FlxSprite(0,0);
     applyHat(previewSkinData.hat, hat1, hat2, prevBirdX, prevBirdY); hat1.cameras = [uiCam]; hat2.cameras = [uiCam]; shopUIGroup.add(hat1); shopUIGroup.add(hat2);
 
-    if (shopCursor < catalog.length) {
+    if (shopCategory == 7) {
+        var codeTitle = new FlxText(panelX, prevBirdY + 10, panelW, "ENTER CODE", 24);
+        codeTitle.setFormat(Paths.font(currentFont), 24, 0xFF88CCFF, "center", 2, 0xFF000000); codeTitle.cameras = [uiCam]; shopTextGroup.add(codeTitle);
+        var codeHint = new FlxText(panelX, prevBirdY + 45, panelW, "FOLLOW @JUSTYTCCD ON\nX/TWITTER FOR CODE DROPS!", 14);
+        codeHint.setFormat(Paths.font(currentFont), 14, 0xFF888888, "center"); codeHint.cameras = [uiCam]; shopTextGroup.add(codeHint);
+        var codeBg = new FlxSprite(panelX + 10, Std.int(prevBirdY + 90)).makeGraphic(panelW - 20, 40, 0xFF1A1A2E);
+        codeBg.cameras = [uiCam]; shopUIGroup.add(codeBg);
+        var cursor = codeTypingBlink ? "_" : "";
+        var codeDisp = new FlxText(panelX + 10, prevBirdY + 96, panelW - 20, "> " + codeInput + cursor, 24);
+        codeDisp.setFormat(Paths.font(currentFont), 24, 0xFFFFFFFF, "center", 2, 0xFF000000); codeDisp.cameras = [uiCam]; shopTextGroup.add(codeDisp);
+        var codeInstr = new FlxText(panelX, prevBirdY + 140, panelW, "[ENTER] REDEEM", 16);
+        codeInstr.setFormat(Paths.font(currentFont), 16, 0xFF00FF88, "center"); codeInstr.cameras = [uiCam]; shopTextGroup.add(codeInstr);
+        if (codeResultText.length > 0) {
+            var codeRes = new FlxText(panelX, prevBirdY + 170, panelW, codeResultText, 16);
+            var resCol = codeResultText.indexOf("SUCCESS") != -1 ? 0xFF00FF88 : 0xFFFF4444;
+            codeRes.setFormat(Paths.font(currentFont), 16, resCol, "center"); codeRes.cameras = [uiCam]; shopTextGroup.add(codeRes);
+        }
+    } else if (shopCursor < catalog.length) {
         var selItem = catalog[shopCursor];
         var selName = new FlxText(panelX, prevBirdY + 80, panelW, selItem.name, 22); selName.setFormat(Paths.font(currentFont), 22, 0xFFFFFFFF, "center", 2, 0xFF000000); selName.cameras = [uiCam]; shopTextGroup.add(selName);
         var selStatus = ""; var selStatCol:Int = 0xFFFFD700;
 
         if (shopCategory == 3) {
             selStatus = "SUPPORT VIA KO-FI\n" + selItem.realPrice + "\nPRESS ENTER TO DONATE"; selStatCol = 0xFF00FF88;
+        } else if (shopCategory == 4) {
+            if (selItem.achRequired != null && selItem.achRequired != "" && !selItem.owned) {
+                selStatus = "REQUIRES ACHIEVEMENT:\n" + selItem.achRequired; selStatCol = 0xFFFF4444;
+            } else if (selItem.id == equippedId) { selStatus = "EQUIPPED"; selStatCol = 0xFF00FF88; }
+            else if (selItem.owned) { selStatus = "PRESS ENTER TO EQUIP"; selStatCol = 0xFF88AAFF; }
+            else { selStatus = "PRESS ENTER TO BUY\n" + selItem.price + " FLOCKERS"; selStatCol = 0xFFFFD700; }
+        } else if (shopCategory == 5) {
+            if (selItem.owned) { selStatus = "OWNED\nUSE IN LOBBY WITH EMOTE KEY"; selStatCol = 0xFF00FF88; }
+            else { selStatus = "PRESS ENTER TO BUY\n" + selItem.price + " FLOCKERS"; selStatCol = 0xFFFFD700; }
+        } else if (shopCategory == 6) {
+            if (selItem.owned) { selStatus = "OWNED!"; selStatCol = 0xFF00FF88; }
+            else { selStatus = selItem.desc + "\n\n" + selItem.flockerPrice + " FLOCKERS\nOR " + selItem.kofiPrice + " VIA KO-FI"; selStatCol = 0xFFFFD700; }
         } else {
             var pwr = ""; if (shopCategory == 0 && previewSkinData.power != "none") pwr = "\nPOWER: " + previewSkinData.power.toUpperCase();
             if (selItem.id == equippedId) { selStatus = "EQUIPPED" + pwr; selStatCol = 0xFF00FF88; }
@@ -324,9 +439,9 @@ function renderShop() {
 }
 
 function shopInteract(idx:Int) {
-    var catalog:Array<Dynamic>;
-    if (shopCategory == 0) catalog = shopSkins; else if (shopCategory == 1) catalog = shopTrails; else if (shopCategory == 2) catalog = shopBGs; else catalog = shopPackages;
+    if (shopCategory == 7) return;
 
+    var catalog:Array<Dynamic> = getCatalog();
     if (idx < 0 || idx >= catalog.length) return;
     var item = catalog[idx];
 
@@ -340,6 +455,36 @@ function shopInteract(idx:Int) {
         return;
     }
 
+    if (shopCategory == 4) {
+        if (item.achRequired != null && item.achRequired != "" && !item.owned) {
+            var achs:Array<String> = FlxG.save.data.flappyAchievements;
+            if (achs == null) achs = [];
+            var hasAch = false;
+            for (a in achs) if (a == item.achRequired) hasAch = true;
+            if (!hasAch) { FlxG.camera.flash(0x33FF0000, 0.2); statusText.text = "ACHIEVEMENT REQUIRED!"; return; }
+            item.owned = true; saveShopData(); FlxG.camera.flash(0x33FFD700, 0.3); renderShop(); return;
+        }
+        if (item.owned) { equippedTitleId = item.id; saveShopData(); FlxG.camera.flash(0x2200FF00, 0.15); renderShop(); return; }
+        if (spendCoins(item.price)) { item.owned = true; saveShopData(); FlxG.camera.flash(0x33FFD700, 0.3); shopInteract(idx); } else { FlxG.camera.flash(0x33FF0000, 0.2); incrementStat("cantAffordAttempts", 1); }
+        return;
+    }
+
+    if (shopCategory == 5) {
+        if (item.owned) { FlxG.camera.flash(0x2200FF00, 0.15); return; }
+        if (spendCoins(item.price)) { item.owned = true; saveShopData(); FlxG.camera.flash(0x33FFD700, 0.3); renderShop(); } else { FlxG.camera.flash(0x33FF0000, 0.2); incrementStat("cantAffordAttempts", 1); }
+        return;
+    }
+
+    if (shopCategory == 6) {
+        if (item.owned) return;
+        if (spendCoins(item.flockerPrice)) {
+            item.owned = true;
+            unlockDLCContents(item);
+            saveShopData(); FlxG.camera.flash(0x33FFD700, 0.5); renderShop();
+        } else { FlxG.camera.flash(0x33FF0000, 0.2); incrementStat("cantAffordAttempts", 1); }
+        return;
+    }
+
     if (item.owned) {
         if (shopCategory == 0) equippedSkinId = item.id;
         else if (shopCategory == 1) equippedTrailId = item.id;
@@ -347,9 +492,48 @@ function shopInteract(idx:Int) {
         saveShopData(); FlxG.camera.flash(0x2200FF00, 0.15); renderShop();
     } else {
         if (spendCoins(item.price)) { item.owned = true; saveShopData(); FlxG.camera.flash(0x33FFD700, 0.3); shopInteract(idx); }
-        else { FlxG.camera.flash(0x33FF0000, 0.2); }
+        else { FlxG.camera.flash(0x33FF0000, 0.2); incrementStat("cantAffordAttempts", 1); }
     }
 }
+
+function getCatalog():Array<Dynamic> {
+    if (shopCategory == 0) return shopSkins;
+    if (shopCategory == 1) return shopTrails;
+    if (shopCategory == 2) return shopBGs;
+    if (shopCategory == 3) return shopPackages;
+    if (shopCategory == 4) return shopTitles;
+    if (shopCategory == 5) return shopEmotes;
+    if (shopCategory == 6) return shopDLCList;
+    return [];
+}
+
+function unlockDLCContents(dlcItem:Dynamic) {
+    if (dlcItem.contents == null) return;
+    var c = dlcItem.contents;
+    if (c.allDLC == true) {
+        for (d in shopDLCList) { if (!d.owned && d.id != dlcItem.id) { d.owned = true; unlockDLCContents(d); } }
+    }
+    if (c.skins != null) { var skinList:Array<String> = c.skins; for (sid in skinList) { for (s in shopSkins) if (s.id == sid) s.owned = true; } }
+    if (c.trails != null) { var trailList:Array<String> = c.trails; for (tid in trailList) { for (t in shopTrails) if (t.id == tid) t.owned = true; } }
+    if (c.bgs != null) { var bgList:Array<String> = c.bgs; for (bid in bgList) { for (b in shopBGs) if (b.id == bid) b.owned = true; } }
+    if (c.titles != null) { var titleList:Array<String> = c.titles; for (tiid in titleList) { for (ti in shopTitles) if (ti.id == tiid) ti.owned = true; } }
+    if (c.coinMultiplier != null) { FlxG.save.data.flappyCoinMultiplier = c.coinMultiplier; }
+}
+
+function getStat(key:String):Int {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) return 0;
+    var val:Dynamic = Reflect.field(stats, key);
+    if (val == null) return 0;
+    return val;
+}
+function saveStat(key:String, value:Int) {
+    var stats:Dynamic = FlxG.save.data.flappyStats;
+    if (stats == null) { stats = {}; FlxG.save.data.flappyStats = stats; }
+    Reflect.setField(stats, key, value);
+    FlxG.save.flush();
+}
+function incrementStat(key:String, amount:Int) { saveStat(key, getStat(key) + amount); }
 
 function netOneShot(msg:String, callback:Dynamic) {
     try {
@@ -391,13 +575,95 @@ function update(elapsed:Float) {
         return;
     }
 
-    var catalog:Array<Dynamic>;
-    if (shopCategory == 0) catalog = shopSkins; else if (shopCategory == 1) catalog = shopTrails; else if (shopCategory == 2) catalog = shopBGs; else catalog = shopPackages;
+    if (shopCategory == 7) {
+        codeTypingCursor += elapsed * 3;
+        if (codeTypingCursor >= 1.0) { codeTypingCursor -= 1.0; codeTypingBlink = !codeTypingBlink; renderShop(); }
+        if (codeResultTimer > 0) { codeResultTimer -= elapsed; if (codeResultTimer <= 0) { codeResultText = ""; renderShop(); } }
+
+        var typed = false;
+        if (codeInput.length < 20) {
+            if (FlxG.keys.justPressed.A) { codeInput += "A"; typed = true; }
+            if (FlxG.keys.justPressed.B) { codeInput += "B"; typed = true; }
+            if (FlxG.keys.justPressed.C) { codeInput += "C"; typed = true; }
+            if (FlxG.keys.justPressed.D) { codeInput += "D"; typed = true; }
+            if (FlxG.keys.justPressed.E) { codeInput += "E"; typed = true; }
+            if (FlxG.keys.justPressed.F) { codeInput += "F"; typed = true; }
+            if (FlxG.keys.justPressed.G) { codeInput += "G"; typed = true; }
+            if (FlxG.keys.justPressed.H) { codeInput += "H"; typed = true; }
+            if (FlxG.keys.justPressed.I) { codeInput += "I"; typed = true; }
+            if (FlxG.keys.justPressed.J) { codeInput += "J"; typed = true; }
+            if (FlxG.keys.justPressed.K) { codeInput += "K"; typed = true; }
+            if (FlxG.keys.justPressed.L) { codeInput += "L"; typed = true; }
+            if (FlxG.keys.justPressed.M) { codeInput += "M"; typed = true; }
+            if (FlxG.keys.justPressed.N) { codeInput += "N"; typed = true; }
+            if (FlxG.keys.justPressed.O) { codeInput += "O"; typed = true; }
+            if (FlxG.keys.justPressed.P) { codeInput += "P"; typed = true; }
+            if (FlxG.keys.justPressed.Q) { codeInput += "Q"; typed = true; }
+            if (FlxG.keys.justPressed.R) { codeInput += "R"; typed = true; }
+            if (FlxG.keys.justPressed.S) { codeInput += "S"; typed = true; }
+            if (FlxG.keys.justPressed.T) { codeInput += "T"; typed = true; }
+            if (FlxG.keys.justPressed.U) { codeInput += "U"; typed = true; }
+            if (FlxG.keys.justPressed.V) { codeInput += "V"; typed = true; }
+            if (FlxG.keys.justPressed.W) { codeInput += "W"; typed = true; }
+            if (FlxG.keys.justPressed.X) { codeInput += "X"; typed = true; }
+            if (FlxG.keys.justPressed.Y) { codeInput += "Y"; typed = true; }
+            if (FlxG.keys.justPressed.Z) { codeInput += "Z"; typed = true; }
+            if (FlxG.keys.justPressed.ZERO) { codeInput += "0"; typed = true; }
+            if (FlxG.keys.justPressed.ONE) { codeInput += "1"; typed = true; }
+            if (FlxG.keys.justPressed.TWO) { codeInput += "2"; typed = true; }
+            if (FlxG.keys.justPressed.THREE) { codeInput += "3"; typed = true; }
+            if (FlxG.keys.justPressed.FOUR) { codeInput += "4"; typed = true; }
+            if (FlxG.keys.justPressed.FIVE) { codeInput += "5"; typed = true; }
+            if (FlxG.keys.justPressed.SIX) { codeInput += "6"; typed = true; }
+            if (FlxG.keys.justPressed.SEVEN) { codeInput += "7"; typed = true; }
+            if (FlxG.keys.justPressed.EIGHT) { codeInput += "8"; typed = true; }
+            if (FlxG.keys.justPressed.NINE) { codeInput += "9"; typed = true; }
+        }
+        if (FlxG.keys.justPressed.BACKSPACE && codeInput.length > 0) { codeInput = codeInput.substr(0, codeInput.length - 1); typed = true; }
+        if (typed) renderShop();
+
+        if (FlxG.keys.justPressed.ENTER && codeInput.length > 0) {
+            var codeToSend = codeInput;
+            codeInput = "";
+            codeResultText = "CHECKING...";
+            renderShop();
+            netOneShot("REDEEM_CODE:" + myNickname + ":" + codeToSend, function(res) {
+                if (res != null && res.indexOf("CODE_SUCCESS:") == 0) {
+                    var rewardJson = res.substr(13);
+                    codeResultText = "SUCCESS! CODE REDEEMED!";
+                    incrementStat("codesRedeemed", 1);
+                    try {
+                        var reward:Dynamic = haxe.Json.parse(rewardJson);
+                        if (reward.type == "coins") { addCoins(reward.amount); codeResultText = "SUCCESS! +" + reward.amount + " FLOCKERS!"; }
+                        else if (reward.type == "title_coins") { addCoins(reward.coins); for (ti in shopTitles) if (ti.id == reward.title.toLowerCase()) ti.owned = true; saveShopData(); codeResultText = "SUCCESS! TITLE + " + reward.coins + "F!"; }
+                        else if (reward.type == "skin") { for (s in shopSkins) if (s.id == reward.skinId) s.owned = true; saveShopData(); codeResultText = "SUCCESS! SKIN UNLOCKED!"; }
+                    } catch(e:Dynamic) {}
+                    FlxG.camera.flash(0x3300FF00, 0.4);
+                } else if (res != null && res.indexOf("CODE_FAIL:") == 0) {
+                    var reason = res.substr(10);
+                    codeResultText = "FAILED: " + reason.toUpperCase();
+                    FlxG.camera.flash(0x33FF0000, 0.3);
+                } else {
+                    codeResultText = "CONNECTION ERROR!";
+                    FlxG.camera.flash(0x33FF0000, 0.3);
+                }
+                codeResultTimer = 4.0;
+                renderShop();
+            });
+        }
+
+        if (FlxG.keys.justPressed.LEFT) { shopCategory = (shopCategory - 1 + totalCategories) % totalCategories; shopCursor = 0; shopScroll = 0; codeInput = ""; codeResultText = ""; renderShop(); }
+        if (FlxG.keys.justPressed.RIGHT) { shopCategory = (shopCategory + 1) % totalCategories; shopCursor = 0; shopScroll = 0; codeInput = ""; codeResultText = ""; renderShop(); }
+        if (FlxG.keys.justPressed.ESCAPE) FlxG.switchState(new ModState("CustomMainMenu"));
+        return;
+    }
+
+    var catalog:Array<Dynamic> = getCatalog();
 
     if (FlxG.keys.justPressed.UP && shopCursor > 0) { shopCursor--; renderShop(); }
     if (FlxG.keys.justPressed.DOWN && shopCursor < catalog.length - 1) { shopCursor++; renderShop(); }
-    if (FlxG.keys.justPressed.LEFT) { shopCategory = (shopCategory - 1 + 4) % 4; shopCursor = 0; shopScroll = 0; renderShop(); }
-    if (FlxG.keys.justPressed.RIGHT) { shopCategory = (shopCategory + 1) % 4; shopCursor = 0; shopScroll = 0; renderShop(); }
+    if (FlxG.keys.justPressed.LEFT) { shopCategory = (shopCategory - 1 + totalCategories) % totalCategories; shopCursor = 0; shopScroll = 0; renderShop(); }
+    if (FlxG.keys.justPressed.RIGHT) { shopCategory = (shopCategory + 1) % totalCategories; shopCursor = 0; shopScroll = 0; renderShop(); }
     if (FlxG.keys.justPressed.ENTER) shopInteract(shopCursor);
     if (FlxG.keys.justPressed.ESCAPE) FlxG.switchState(new ModState("CustomMainMenu"));
 }

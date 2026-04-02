@@ -14,6 +14,11 @@ var games:Array<Dynamic> = [
     {name: "Dodge Derby", state: "DodgeDerbyState", desc: "SURVIVE WAVES OF PROJECTILES! DON'T GET HIT!", color: 0xFF00CCFF},
     {name: "Musical Tiles", state: "MusicalTilesState", desc: "STAND ON LIT TILES WHEN THE MUSIC STOPS!", color: 0xFFFF44AA}
 ];
+var extras:Array<Dynamic> = [
+    {name: "Sky Run", state: "SkyRunState", desc: "3D PLATFORMER RUNNER! DON'T FALL!", color: 0xFF44DDFF},
+    {name: "Cube Clash", state: "CubeClashState", desc: "3D ARENA BATTLE! LAST CUBE STANDING!", color: 0xFFFF8844},
+    {name: "Tower Climb", state: "TowerClimbState", desc: "3D TOWER RACE! REACH THE TOP FIRST!", color: 0xFF88FF44}
+];
 var menuItems:Array<String> = [];
 var curSelected:Int = 0;
 var grpOptions:FlxTypedGroup<FlxText>;
@@ -28,6 +33,9 @@ var flockerSpin:Float = 0;
 
 function create() {
     for (g in games) menuItems.push(g.name);
+    menuItems.push("--- EXTRAS ---");
+    for (e in extras) menuItems.push(e.name);
+    menuItems.push("Achievements");
     menuItems.push("Shop");
     menuItems.push("Credits");
     menuItems.push("Options");
@@ -63,13 +71,23 @@ function create() {
     flockerText.setFormat(Paths.font("vcr.ttf"), 20, 0xFFFFD700, "right");
     add(flockerText);
 
+    var achCount = 0;
+    var achs:Array<String> = FlxG.save.data.flappyAchievements;
+    if (achs != null) achCount = achs.length;
+    var achText = new FlxText(FlxG.width - 240, 40, 220, achCount + "/57 ACHIEVEMENTS", 14);
+    achText.setFormat(Paths.font("vcr.ttf"), 14, 0xFF88CCFF, "right");
+    achText.alpha = 0.7;
+    add(achText);
+
     grpOptions = new FlxTypedGroup();
     add(grpOptions);
 
     for (i in 0...menuItems.length) {
-        var yPos = 120 + (i * 58);
-        var menuText:FlxText = new FlxText(10, yPos, 520, menuItems[i].toUpperCase(), 36);
-        menuText.setFormat(Paths.font("vcr.ttf"), 36, FlxColor.WHITE, "left");
+        var yPos = 110 + (i * 46);
+        var isSep = menuItems[i] == "--- EXTRAS ---";
+        var fontSize = isSep ? 22 : 32;
+        var menuText:FlxText = new FlxText(10, yPos, 520, menuItems[i].toUpperCase(), fontSize);
+        menuText.setFormat(Paths.font("vcr.ttf"), fontSize, isSep ? 0xFF555555 : FlxColor.WHITE, "left");
         menuText.ID = i;
         menuText.x -= 20;
         menuText.alpha = 0;
@@ -97,13 +115,20 @@ function update(elapsed:Float) {
             if (txt.ID == curSelected) FlxTween.color(txt, 0.15, txt.color, 0xFFFFFFFF);
         });
 
+        var separatorIdx = games.length;
+        var extrasStart = games.length + 1;
+        var extrasEnd = extrasStart + extras.length;
+        if (curSelected == separatorIdx) return;
         if (curSelected < games.length) {
             FlxG.switchState(new ModState(games[curSelected].state));
+        } else if (curSelected >= extrasStart && curSelected < extrasEnd) {
+            FlxG.switchState(new ModState(extras[curSelected - extrasStart].state));
         } else {
-            var extra = curSelected - games.length;
-            if (extra == 0) FlxG.switchState(new ModState("ShopState"));
-            else if (extra == 1) FlxG.switchState(new ModState("CreditsState"));
-            else if (extra == 2) FlxG.switchState(new OptionsMenu());
+            var tail = curSelected - extrasEnd;
+            if (tail == 0) FlxG.switchState(new ModState("AchievementsState"));
+            else if (tail == 1) FlxG.switchState(new ModState("ShopState"));
+            else if (tail == 2) FlxG.switchState(new ModState("CreditsState"));
+            else if (tail == 3) FlxG.switchState(new OptionsMenu());
         }
     }
 
@@ -124,20 +149,32 @@ function changeSelection(change:Int) {
     curSelected += change;
     if (curSelected < 0) curSelected = menuItems.length - 1;
     if (curSelected >= menuItems.length) curSelected = 0;
+    if (curSelected == games.length) { curSelected += change >= 0 ? 1 : -1; if (curSelected < 0) curSelected = menuItems.length - 1; if (curSelected >= menuItems.length) curSelected = 0; }
 
     FlxG.sound.play(Paths.sound("scrollMenu"));
+
+    var separatorIdx = games.length;
+    var extrasStart = games.length + 1;
+    var extrasEnd = extrasStart + extras.length;
 
     grpOptions.forEach(function(txt:FlxText) {
         if (txt.ID == curSelected) {
             if (curSelected < games.length) txt.color = games[curSelected].color;
+            else if (curSelected == separatorIdx) txt.color = 0xFF888888;
+            else if (curSelected >= extrasStart && curSelected < extrasEnd) txt.color = extras[curSelected - extrasStart].color;
             else txt.color = 0xFFFFFF00;
         } else {
-            txt.color = 0xFFFFFFFF;
+            if (txt.ID == separatorIdx) txt.color = 0xFF555555;
+            else txt.color = 0xFFFFFFFF;
         }
     });
 
     if (curSelected < games.length) descText.text = games[curSelected].desc;
-    else if (curSelected == games.length) descText.text = "BUY SKINS, TRAILS AND FLOCKERS";
-    else if (curSelected == games.length + 1) descText.text = "";
+    else if (curSelected == separatorIdx) descText.text = "3D MINIGAMES WITH AWAY3D!";
+    else if (curSelected >= extrasStart && curSelected < extrasEnd) descText.text = extras[curSelected - extrasStart].desc;
+    else if (curSelected == extrasEnd) descText.text = "VIEW YOUR ACHIEVEMENTS! CAN YOU 100% THEM ALL?";
+    else if (curSelected == extrasEnd + 1) descText.text = "BUY SKINS, TRAILS, TITLES, EMOTES, DLC AND MORE!";
+    else if (curSelected == extrasEnd + 2) descText.text = "SEE WHO MADE THIS GAME!";
+    else if (curSelected == extrasEnd + 3) descText.text = "ADJUST GAME SETTINGS";
     else descText.text = "";
 }
