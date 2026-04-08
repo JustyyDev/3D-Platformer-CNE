@@ -6,7 +6,7 @@ import flixel.tweens.FlxEase;
 import funkin.backend.scripting.ModState;
 import funkin.backend.system.github.GitHub;
 
-var CURRENT_VERSION:String = "0.1.0";
+var CURRENT_VERSION:String = "0.1.1";
 var GITHUB_USER:String = "JustyyDev";
 var GITHUB_REPO:String = "3D-Platformer-CNE";
 
